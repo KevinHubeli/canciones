@@ -130,3 +130,54 @@ export function displayChord(
   const transposed = transposeChord(toEnglishNotation(chord), semitones);
   return notation === "latin" ? toLatinNotation(transposed) : transposed;
 }
+
+export type WrappedRow<T extends { index: number; label: string }> = {
+  lyrics: string;
+  chords: T[];
+};
+
+/**
+ * Corta una línea (letra + acordes ya resueltos con su texto a mostrar) en
+ * varias filas para que ninguna supere `maxChars`, en vez de desbordar el
+ * ancho de pantalla. Corta por palabra cuando puede; los acordes viajan con
+ * la fila que les corresponde y su `index` se reajusta al nuevo inicio.
+ */
+export function wrapLine<T extends { index: number; label: string }>(
+  lyrics: string,
+  chords: T[],
+  maxChars: number
+): WrappedRow<T>[] {
+  const neededWidth = chords.reduce(
+    (max, c) => Math.max(max, c.index + c.label.length),
+    lyrics.length
+  );
+  if (maxChars <= 0 || neededWidth <= maxChars) {
+    return [{ lyrics, chords }];
+  }
+
+  const rows: WrappedRow<T>[] = [];
+  const len = lyrics.length;
+  let start = 0;
+  for (;;) {
+    let end = Math.min(start + maxChars, len);
+    const isLast = end >= len;
+    if (!isLast) {
+      const lastSpace = lyrics.lastIndexOf(" ", end - 1);
+      if (lastSpace > start) end = lastSpace + 1;
+    }
+    if (end <= start) end = Math.min(start + maxChars, len);
+
+    rows.push({
+      lyrics: lyrics.slice(start, end),
+      // La última fila se queda con cualquier acorde que sobre (ej. uno
+      // colgado justo después del último carácter de la letra).
+      chords: chords
+        .filter((c) => c.index >= start && (isLast || c.index < end))
+        .map((c) => ({ ...c, index: c.index - start })),
+    });
+
+    if (isLast) break;
+    start = end;
+  }
+  return rows;
+}
