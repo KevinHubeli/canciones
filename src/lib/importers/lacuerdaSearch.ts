@@ -24,17 +24,25 @@ function normalize(s: string): string {
  */
 export async function searchLaCuerda(query: string): Promise<LaCuerdaCandidate[]> {
   const url = `https://acordes.lacuerda.net/busca.php?canc=0&exp=${encodeURIComponent(query)}`;
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; CancioneroImporter/1.0)" },
-      signal: AbortSignal.timeout(8000),
-    });
-  } catch {
-    return [];
+
+  // LaCuerda a veces tarda o corta la conexión sin motivo aparente; un solo
+  // intento fallido no debería dejar una canción sin acordes para siempre.
+  let html: string | null = null;
+  for (let attempt = 0; attempt < 3 && html === null; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; CancioneroImporter/1.0)" },
+        signal: AbortSignal.timeout(12000),
+      });
+      if (res.ok) html = await res.text();
+    } catch {
+      // reintenta
+    }
+    if (html === null && attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
   }
-  if (!res.ok) return [];
-  const html = await res.text();
+  if (html === null) return [];
 
   const hdsMatch = html.match(/var hds\s*=\s*\[(.*?)\];/);
   const fnsMatch = html.match(/var fns\s*=\s*\[(.*?)\];/);
