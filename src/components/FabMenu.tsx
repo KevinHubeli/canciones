@@ -167,12 +167,12 @@ function FabButton({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-12 min-w-12 items-center gap-2 rounded-full px-3 text-sm font-medium shadow-lg transition-colors ${
+      className={`flex h-12 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-medium shadow-lg transition-colors ${
         active ? "bg-accent text-mist" : "bg-night/90 text-lilac-light"
       }`}
     >
       {icon}
-      <span className="hidden sm:inline">{label}</span>
+      <span>{label}</span>
     </button>
   );
 }
