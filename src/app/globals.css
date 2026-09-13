@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  --color-night: #1a1420;
+  --color-plum-deep: #2e2338;
+  --color-plum: #4a3a5c;
+  --color-mist: #f6f1fa;
+  --color-lilac-light: #c9b8d9;
+  --color-chord-gold: #e8a94a;
+  --color-accent: #f0824a;
+}
+
+@theme inline {
+  --color-night: var(--color-night);
+  --color-plum-deep: var(--color-plum-deep);
+  --color-plum: var(--color-plum);
+  --color-mist: var(--color-mist);
+  --color-lilac-light: var(--color-lilac-light);
+  --color-chord-gold: var(--color-chord-gold);
+  --color-accent: var(--color-accent);
+  --font-sans: var(--font-quicksand);
+  --font-display: var(--font-cinzel);
+  --font-mono: var(--font-jetbrains);
+
+  --animate-fade-in: fade-in 0.8s ease-out both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-plum-deep);
+  color: var(--color-mist);
+  font-family: var(--font-sans), sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-plum) transparent;
+}
+
+.font-display {
+  font-family: var(--font-display), serif;
+}
