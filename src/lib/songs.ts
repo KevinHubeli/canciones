@@ -58,6 +58,21 @@ export async function createSong(input: {
   return toSong(row);
 }
 
+export async function createSongsBulk(
+  inputs: { title: string; artist: string; originalKey: string; body: string }[]
+): Promise<number> {
+  if (inputs.length === 0) return 0;
+  const db = getDb();
+  const BATCH_SIZE = 100;
+  let inserted = 0;
+  for (let i = 0; i < inputs.length; i += BATCH_SIZE) {
+    const batch = inputs.slice(i, i + BATCH_SIZE);
+    const rows = await db.insert(songs).values(batch).returning({ id: songs.id });
+    inserted += rows.length;
+  }
+  return inserted;
+}
+
 export async function updateSong(
   id: string,
   input: Partial<{

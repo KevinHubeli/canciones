@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
 import Spinner from "@/components/Spinner";
 
@@ -52,6 +52,13 @@ export default function AdminSongList() {
             className="w-full rounded-full border border-plum bg-night/50 py-2.5 pl-10 pr-4 text-sm text-mist placeholder:text-lilac-light/70"
           />
         </div>
+        <Link
+          href="/admin/importar-holyrics"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-mist"
+          aria-label="Importar desde Holyrics"
+        >
+          <Download size={18} />
+        </Link>
         <Link
           href="/admin/nueva"
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-night"

@@ -76,48 +76,57 @@ export default function SongForm({ initial }: { initial?: Song }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4 px-5 pb-10">
-      {!initial && (
-        <div className="rounded-2xl border border-plum/60 bg-night/40 p-3">
-          {!showImport ? (
-            <button
-              type="button"
-              onClick={() => setShowImport(true)}
-              className="text-sm text-chord-gold underline"
-            >
-              Importar desde una URL (Cifra Club o LaCuerda)
-            </button>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <input
-                value={importUrl}
-                onChange={(e) => setImportUrl(e.target.value)}
-                placeholder="https://www.cifraclub.com/artista/cancion/"
-                className="rounded-xl border border-plum bg-night/50 px-3 py-2 text-sm text-mist placeholder:text-lilac-light/70"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleImport}
-                  disabled={importing}
-                  className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-night disabled:opacity-60"
-                >
-                  {importing ? "Importando..." : "Importar"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowImport(false)}
-                  className="text-sm text-lilac-light"
-                >
-                  Cancelar
-                </button>
-              </div>
-              <p className="text-xs text-lilac-light">
-                Se precarga el formulario: revisá todo antes de guardar.
-              </p>
+      <div className="rounded-2xl border border-plum/60 bg-night/40 p-3">
+        {!showImport ? (
+          <button
+            type="button"
+            onClick={() => setShowImport(true)}
+            className="text-sm text-chord-gold underline"
+          >
+            Importar acordes desde una URL (Cifra Club o LaCuerda)
+          </button>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {title.trim() && (
+              <a
+                href={`https://www.cifraclub.com/search/?q=${encodeURIComponent(title.trim())}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-lilac-light underline"
+              >
+                Buscar &quot;{title.trim()}&quot; en Cifra Club ↗
+              </a>
+            )}
+            <input
+              value={importUrl}
+              onChange={(e) => setImportUrl(e.target.value)}
+              placeholder="https://www.cifraclub.com/artista/cancion/"
+              className="rounded-xl border border-plum bg-night/50 px-3 py-2 text-sm text-mist placeholder:text-lilac-light/70"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleImport}
+                disabled={importing}
+                className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-night disabled:opacity-60"
+              >
+                {importing ? "Importando..." : "Importar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowImport(false)}
+                className="text-sm text-lilac-light"
+              >
+                Cancelar
+              </button>
             </div>
-          )}
-        </div>
-      )}
+            <p className="text-xs text-lilac-light">
+              Se reemplaza el título, artista, tono y letra con lo que traiga esa página:
+              revisá todo antes de guardar.
+            </p>
+          </div>
+        )}
+      </div>
 
       <Field label="Título">
         <input
