@@ -36,12 +36,12 @@ export default function SongViewer({ song }: { song: Song }) {
 
   const lines = useMemo(() => song.body.split("\n"), [song.body]);
 
-  // El caracter más ancho que puede llegar a ocupar cada línea: la letra, o
-  // el último acorde si queda más a la derecha que la letra (línea corta con
-  // un acorde final, p. ej. "...corazón[A7]"). Se recalcula si cambia el
-  // tono o la notación porque el largo del nombre del acorde puede variar.
-  const maxChars = useMemo(() => {
-    let max = 1;
+  // Cuántos caracteres ocupa cada línea: la letra, o el último acorde si
+  // queda más a la derecha que la letra (línea corta con un acorde final,
+  // p. ej. "...corazón[A7]"). Se recalcula si cambia el tono o la notación
+  // porque el largo del nombre del acorde puede variar.
+  const typicalLineChars = useMemo(() => {
+    const widths: number[] = [];
     for (const raw of lines) {
       const { lyrics, chords } = parseSongLine(raw);
       let lineMax = lyrics.length;
@@ -49,13 +49,20 @@ export default function SongViewer({ song }: { song: Song }) {
         const label = displayChord(chord.chord, semitones, notation);
         lineMax = Math.max(lineMax, chord.index + label.length);
       }
-      max = Math.max(max, lineMax);
+      if (lineMax > 0) widths.push(lineMax);
     }
-    return max;
+    if (widths.length === 0) return 1;
+    widths.sort((a, b) => a - b);
+    // Se usa la línea del medio (mediana), no la más larga: un par de líneas
+    // largas sueltas (un comentario, una repetición con más letra) no deben
+    // achicar toda la canción. Esas líneas más largas van a scrollear un
+    // poco horizontalmente, en vez de dejar la letra normal minúscula.
+    return widths[Math.floor(widths.length / 2)];
   }, [lines, semitones, notation]);
 
-  // Ajusta el tamaño de letra para que la línea más larga siempre entre en el
-  // ancho de pantalla disponible: así nunca hace falta hacer scroll horizontal.
+  // Ajusta el tamaño de letra según lo que ocupa una línea típica, para que
+  // la letra llene bien la pantalla en vez de quedar minúscula por un par de
+  // líneas largas sueltas (esas van a scrollear un poco, no todo el resto).
   useLayoutEffect(() => {
     const container = scrollRef.current;
     if (!container) return;
@@ -73,7 +80,10 @@ export default function SongViewer({ song }: { song: Song }) {
       ctx.font = `${probe}px ${getComputedStyle(container).fontFamily}`;
       const chWidthAtProbe = ctx.measureText("0").width || probe * 0.6;
 
-      const fitPx = Math.max(MIN_FIT_PX, Math.floor((available * probe) / (maxChars * chWidthAtProbe)));
+      const fitPx = Math.max(
+        MIN_FIT_PX,
+        Math.floor((available * probe) / (typicalLineChars * chWidthAtProbe))
+      );
       setFontSizePx(Math.min(PREFERRED_PX[textSizeIndex], fitPx));
     }
 
@@ -81,7 +91,7 @@ export default function SongViewer({ song }: { song: Song }) {
     const observer = new ResizeObserver(fit);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [maxChars, textSizeIndex]);
+  }, [typicalLineChars, textSizeIndex]);
 
   useEffect(() => {
     try {
