@@ -9,6 +9,7 @@ import ChordDiagramPopover from "@/components/ChordDiagramPopover";
 
 const TEXT_SIZES = ["text-sm", "text-base", "text-lg"];
 const TEXT_SIZE_KEY = "cancionero:textSizeIndex";
+const AUTOSCROLL_PX_PER_TICK = 2;
 
 export default function SongViewer({ song }: { song: Song }) {
   const [semitones, setSemitones] = useState(0);
@@ -24,7 +25,6 @@ export default function SongViewer({ song }: { song: Song }) {
   });
   const [menuOpen, setMenuOpen] = useState(true);
   const [autoScroll, setAutoScroll] = useState(false);
-  const [scrollSpeed, setScrollSpeed] = useState(2);
   const [diagramMode, setDiagramMode] = useState(false);
   const [activeChord, setActiveChord] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -41,9 +41,9 @@ export default function SongViewer({ song }: { song: Song }) {
     if (!autoScroll) return;
     const el = scrollRef.current;
     if (!el) return;
-    const id = setInterval(() => el.scrollBy({ top: scrollSpeed }), 40);
+    const id = setInterval(() => el.scrollBy({ top: AUTOSCROLL_PX_PER_TICK }), 40);
     return () => clearInterval(id);
-  }, [autoScroll, scrollSpeed]);
+  }, [autoScroll]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -97,8 +97,6 @@ export default function SongViewer({ song }: { song: Song }) {
         onToggleMenu={() => setMenuOpen((v) => !v)}
         autoScroll={autoScroll}
         onToggleAutoScroll={() => setAutoScroll((v) => !v)}
-        scrollSpeed={scrollSpeed}
-        onChangeScrollSpeed={setScrollSpeed}
         diagramMode={diagramMode}
         onToggleDiagramMode={() => setDiagramMode((v) => !v)}
         semitones={semitones}

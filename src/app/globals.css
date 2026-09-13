@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --color-night: #1a1420;
-  --color-plum-deep: #2e2338;
-  --color-plum: #4a3a5c;
-  --color-mist: #f6f1fa;
-  --color-lilac-light: #c9b8d9;
-  --color-chord-gold: #e8a94a;
-  --color-accent: #f0824a;
+  --color-night: #0a0a0b;
+  --color-plum-deep: #19191b;
+  --color-plum: #2e2e31;
+  --color-mist: #f2f2f0;
+  --color-lilac-light: #9a9a9d;
+  --color-chord-gold: #ff5a3c;
+  --color-accent: #e2231a;
 }
 
 @theme inline {

@@ -19,8 +19,6 @@ type Props = {
   onToggleMenu: () => void;
   autoScroll: boolean;
   onToggleAutoScroll: () => void;
-  scrollSpeed: number;
-  onChangeScrollSpeed: (speed: number) => void;
   diagramMode: boolean;
   onToggleDiagramMode: () => void;
   semitones: number;
@@ -39,8 +37,6 @@ export default function FabMenu({
   onToggleMenu,
   autoScroll,
   onToggleAutoScroll,
-  scrollSpeed,
-  onChangeScrollSpeed,
   diagramMode,
   onToggleDiagramMode,
   semitones,
@@ -97,20 +93,6 @@ export default function FabMenu({
               label="Agrandar letra"
             >
               <span className="text-sm font-bold">A+</span>
-            </RoundButton>
-          </div>
-        </Panel>
-      )}
-
-      {autoScroll && (
-        <Panel title="Velocidad" onClose={undefined}>
-          <div className="flex items-center justify-center gap-4">
-            <RoundButton onClick={() => onChangeScrollSpeed(Math.max(1, scrollSpeed - 1))} label="Más lento">
-              <Minus size={18} />
-            </RoundButton>
-            <span className="w-6 text-center font-mono text-lg text-chord-gold">{scrollSpeed}</span>
-            <RoundButton onClick={() => onChangeScrollSpeed(Math.min(8, scrollSpeed + 1))} label="Más rápido">
-              <Plus size={18} />
             </RoundButton>
           </div>
         </Panel>

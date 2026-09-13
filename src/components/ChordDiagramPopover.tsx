@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
-import type { ChordDiagram } from "@/app/api/chord-diagram/route";
+import {
+  getBassDiagram,
+  getGuitarDiagram,
+  getKeyboardDiagram,
+  type FretDiagram as FretDiagramData,
+  type KeyboardDiagram as KeyboardDiagramData,
+} from "@/lib/chordDiagrams";
 
-type Status = "loading" | "ok" | "error";
+type Instrument = "guitar" | "bass" | "keyboard";
 
 export default function ChordDiagramPopover({
   chord,
@@ -13,54 +19,12 @@ export default function ChordDiagramPopover({
   chord: string;
   onClose: () => void;
 }) {
-  const [diagram, setDiagram] = useState<ChordDiagram | null>(null);
-  const [status, setStatus] = useState<Status>("loading");
+  const [instrument, setInstrument] = useState<Instrument>("guitar");
 
-  useEffect(() => {
-    let cancelled = false;
-    const cacheKey = `chord-diagram:${chord}`;
-
-    async function load() {
-      setStatus("loading");
-      try {
-        const cached = sessionStorage.getItem(cacheKey);
-        if (cached !== null) {
-          const parsed: ChordDiagram | null = JSON.parse(cached);
-          if (!cancelled) {
-            setDiagram(parsed);
-            setStatus(parsed ? "ok" : "error");
-          }
-          return;
-        }
-      } catch {
-        // sessionStorage no disponible: seguimos y pedimos igual.
-      }
-
-      try {
-        const res = await fetch(`/api/chord-diagram?name=${encodeURIComponent(chord)}`);
-        const data = res.ok ? await res.json() : { diagram: null };
-        if (!cancelled) {
-          setDiagram(data.diagram ?? null);
-          setStatus(data.diagram ? "ok" : "error");
-        }
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify(data.diagram ?? null));
-        } catch {
-          // no pasa nada si no se puede cachear en el navegador
-        }
-      } catch {
-        if (!cancelled) {
-          setDiagram(null);
-          setStatus("error");
-        }
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [chord]);
+  const guitar = getGuitarDiagram(chord);
+  const bass = getBassDiagram(chord);
+  const keyboard = getKeyboardDiagram(chord);
+  const nothingAvailable = !guitar && !bass && !keyboard;
 
   return (
     <div
@@ -82,38 +46,71 @@ export default function ChordDiagramPopover({
           </button>
         </div>
 
-        {status === "loading" && (
-          <p className="py-6 text-center text-sm text-lilac-light">Buscando el diagrama...</p>
-        )}
-        {status === "error" && (
+        {nothingAvailable ? (
           <p className="py-6 text-center text-sm text-lilac-light">
             Diagrama no disponible para este acorde.
           </p>
+        ) : (
+          <>
+            <div className="mb-4 flex justify-center gap-2">
+              <Tab label="Guitarra" active={instrument === "guitar"} disabled={!guitar} onClick={() => setInstrument("guitar")} />
+              <Tab label="Bajo" active={instrument === "bass"} disabled={!bass} onClick={() => setInstrument("bass")} />
+              <Tab label="Teclado" active={instrument === "keyboard"} disabled={!keyboard} onClick={() => setInstrument("keyboard")} />
+            </div>
+
+            {instrument === "guitar" && guitar && <FretDiagram frets={guitar.frets} />}
+            {instrument === "bass" && bass && <FretDiagram frets={bass.frets} />}
+            {instrument === "keyboard" && keyboard && <PianoDiagram activeKeys={keyboard.activeKeys} />}
+          </>
         )}
-        {status === "ok" && diagram && <FretDiagram frets={diagram.frets} />}
       </div>
     </div>
   );
 }
 
-function FretDiagram({ frets }: { frets: number[] }) {
-  const fretsUsed = frets.filter((f) => f > 0);
-  const baseFret = fretsUsed.length ? Math.min(...fretsUsed) : 1;
-  const width = 100;
+function Tab({
+  label,
+  active,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+        active ? "bg-accent text-mist" : "bg-white/10 text-lilac-light"
+      } ${disabled ? "opacity-30" : ""}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function FretDiagram({ frets }: { frets: FretDiagramData["frets"] }) {
+  const stringGap = 20;
+  const width = stringGap * (frets.length - 1);
   const height = 120;
-  const stringGap = width / 5;
   const fretGap = height / 4;
 
+  const fretsUsed = frets.filter((f) => f > 0);
+  const baseFret = fretsUsed.length ? Math.min(...fretsUsed) : 1;
+
   return (
-    <svg viewBox={`-10 -14 ${width + 24} ${height + 20}`} className="mx-auto h-44 w-36">
-      {[0, 1, 2, 3, 4].map((s) => (
+    <svg viewBox={`-10 -14 ${width + 24} ${height + 20}`} className="mx-auto h-44 w-full max-w-[180px]">
+      {frets.map((_, s) => (
         <line
           key={`string-${s}`}
           x1={s * stringGap}
           y1={0}
           x2={s * stringGap}
           y2={height}
-          stroke="#c9b8d9"
+          stroke="#9a9a9d"
           strokeWidth={1}
         />
       ))}
@@ -124,12 +121,12 @@ function FretDiagram({ frets }: { frets: number[] }) {
           y1={f * fretGap}
           x2={width}
           y2={f * fretGap}
-          stroke="#c9b8d9"
+          stroke="#9a9a9d"
           strokeWidth={f === 0 && baseFret === 1 ? 3 : 1}
         />
       ))}
       {baseFret > 1 && (
-        <text x={width + 6} y={fretGap * 0.7} fontSize={10} fill="#c9b8d9">
+        <text x={width + 6} y={fretGap * 0.7} fontSize={10} fill="#9a9a9d">
           {baseFret}
         </text>
       )}
@@ -137,16 +134,64 @@ function FretDiagram({ frets }: { frets: number[] }) {
         const x = i * stringGap;
         if (f === -1) {
           return (
-            <text key={`x-${i}`} x={x} y={-4} fontSize={10} textAnchor="middle" fill="#f0824a">
+            <text key={`x-${i}`} x={x} y={-4} fontSize={10} textAnchor="middle" fill="#ff5a3c">
               ×
             </text>
           );
         }
         if (f === 0) {
-          return <circle key={`o-${i}`} cx={x} cy={-6} r={3} fill="none" stroke="#c9b8d9" strokeWidth={1} />;
+          return <circle key={`o-${i}`} cx={x} cy={-6} r={3} fill="none" stroke="#9a9a9d" strokeWidth={1} />;
         }
         const rel = f - baseFret + 1;
-        return <circle key={`d-${i}`} cx={x} cy={(rel - 0.5) * fretGap} r={5} fill="#e8a94a" />;
+        return <circle key={`d-${i}`} cx={x} cy={(rel - 0.5) * fretGap} r={5} fill="#ff5a3c" />;
+      })}
+    </svg>
+  );
+}
+
+const WHITE_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+// Semitono de la tecla negra que va justo después de cada tecla blanca (null = no hay negra ahí).
+const BLACK_AFTER_WHITE: (number | null)[] = [1, 3, null, 6, 8, 10, null];
+
+function PianoDiagram({ activeKeys }: { activeKeys: KeyboardDiagramData["activeKeys"] }) {
+  const whiteWidth = 24;
+  const whiteHeight = 90;
+  const blackWidth = 14;
+  const blackHeight = 55;
+  const isActive = (semitone: number) => activeKeys.includes(semitone);
+
+  return (
+    <svg
+      viewBox={`0 0 ${whiteWidth * WHITE_SEMITONES.length} ${whiteHeight}`}
+      className="mx-auto h-32 w-full max-w-[220px]"
+    >
+      {WHITE_SEMITONES.map((semitone, i) => (
+        <rect
+          key={`w-${i}`}
+          x={i * whiteWidth}
+          y={0}
+          width={whiteWidth}
+          height={whiteHeight}
+          fill={isActive(semitone) ? "#ff5a3c" : "#f2f2f0"}
+          stroke="#2e2e31"
+          strokeWidth={1}
+        />
+      ))}
+      {BLACK_AFTER_WHITE.map((blackSemitone, i) => {
+        if (blackSemitone === null) return null;
+        const x = (i + 1) * whiteWidth - blackWidth / 2;
+        return (
+          <rect
+            key={`b-${i}`}
+            x={x}
+            y={0}
+            width={blackWidth}
+            height={blackHeight}
+            fill={isActive(blackSemitone) ? "#ff5a3c" : "#0a0a0b"}
+            stroke="#2e2e31"
+            strokeWidth={1}
+          />
+        );
       })}
     </svg>
   );
