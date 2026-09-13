@@ -10,13 +10,13 @@ export default function ChordLine({
   raw,
   semitones,
   notation,
-  textSizeClass,
+  textSizeClass = "",
   interactive,
 }: {
   raw: string;
   semitones: number;
   notation: ChordNotation;
-  textSizeClass: string;
+  textSizeClass?: string;
   interactive: boolean;
 }) {
   const { lyrics, chords } = parseSongLine(raw);
