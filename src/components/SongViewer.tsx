@@ -23,7 +23,7 @@ export default function SongViewer({ song }: { song: Song }) {
       return 1;
     }
   });
-  const [menuOpen, setMenuOpen] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [autoScroll, setAutoScroll] = useState(false);
   const [diagramMode, setDiagramMode] = useState(false);
   const [activeChord, setActiveChord] = useState<string | null>(null);
