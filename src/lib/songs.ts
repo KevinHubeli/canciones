@@ -47,6 +47,16 @@ export async function getSong(id: string): Promise<Song | null> {
   return row ? toSong(row) : null;
 }
 
+const HAS_CHORDS_RE = /\[[^\]]+\]/;
+
+/** Canciones cuyo body no tiene ningún [Acorde]: candidatas para el auto-emparejado. */
+export async function listSongsWithoutChords(): Promise<{ id: string; title: string }[]> {
+  const rows = await getDb()
+    .select({ id: songs.id, title: songs.title, body: songs.body })
+    .from(songs);
+  return rows.filter((r) => !HAS_CHORDS_RE.test(r.body)).map((r) => ({ id: r.id, title: r.title }));
+}
+
 export async function createSong(input: {
   title: string;
   artist: string;
