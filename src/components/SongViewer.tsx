@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Song } from "@/lib/types";
 import { displayChord, type ChordNotation } from "@/lib/chords";
 import ChordLine from "@/components/ChordLine";
@@ -11,7 +13,16 @@ const TEXT_SIZE_KEY = "cancionero:textSizeIndex";
 const AUTOSCROLL_PX_PER_TICK = 2;
 const PREFERRED_PX = [14, 16, 19];
 
-export default function SongViewer({ song }: { song: Song }) {
+export default function SongViewer({
+  song,
+  setIds,
+  index,
+}: {
+  song: Song;
+  setIds?: string[];
+  index?: number;
+}) {
+  const router = useRouter();
   const [semitones, setSemitones] = useState(0);
   const [notation, setNotation] = useState<ChordNotation>("en");
   const [textSizeIndex, setTextSizeIndex] = useState(() => {
@@ -142,6 +153,36 @@ export default function SongViewer({ song }: { song: Song }) {
       {activeChord && (
         <ChordDiagramPopover chord={activeChord} onClose={() => setActiveChord(null)} />
       )}
+
+      {setIds && setIds.length > 0 && index !== undefined && (
+        <div className="fixed bottom-24 left-4 z-40 flex items-center gap-2">
+          <button
+            onClick={() => goTo(router, setIds, index - 1)}
+            disabled={index <= 0}
+            aria-label="Canción anterior del power"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-night/90 text-mist shadow-lg disabled:opacity-30"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <span className="rounded-full bg-night/90 px-3 py-1.5 text-xs text-lilac-light shadow-lg">
+            {index + 1}/{setIds.length}
+          </span>
+          <button
+            onClick={() => goTo(router, setIds, index + 1)}
+            disabled={index >= setIds.length - 1}
+            aria-label="Canción siguiente del power"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-night/90 text-mist shadow-lg disabled:opacity-30"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      )}
     </div>
   );
+}
+
+function goTo(router: ReturnType<typeof useRouter>, setIds: string[], newIndex: number) {
+  if (newIndex < 0 || newIndex >= setIds.length) return;
+  const params = new URLSearchParams({ set: setIds.join(","), i: String(newIndex) });
+  router.push(`/canciones/${setIds[newIndex]}?${params}`);
 }

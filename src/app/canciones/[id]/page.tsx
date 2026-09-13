@@ -4,12 +4,18 @@ import SongViewer from "@/components/SongViewer";
 
 export default async function SongPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ set?: string; i?: string }>;
 }) {
   const { id } = await params;
+  const sp = await searchParams;
   const song = await getSong(id).catch(() => null);
   if (!song) notFound();
 
-  return <SongViewer song={song} />;
+  const setIds = sp.set ? sp.set.split(",").filter(Boolean) : undefined;
+  const index = sp.i ? Number(sp.i) : undefined;
+
+  return <SongViewer song={song} setIds={setIds} index={index} />;
 }

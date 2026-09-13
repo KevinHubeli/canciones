@@ -25,3 +25,21 @@ export const songs = pgTable(
 );
 
 export type SongRow = typeof songs.$inferSelect;
+
+export const setlists = pgTable("setlists", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  // Orden de canciones del power: array de ids de `songs`, en el orden en que se cantan.
+  songIds: uuid("song_ids")
+    .array()
+    .notNull()
+    .default(sql`ARRAY[]::uuid[]`),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type SetlistRow = typeof setlists.$inferSelect;

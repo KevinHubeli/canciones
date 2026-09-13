@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Download, Music, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Download, ListMusic, Music, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
 import Spinner from "@/components/Spinner";
 
@@ -65,6 +65,13 @@ export default function AdminSongList() {
           aria-label="Buscar acordes automáticamente"
         >
           <Music size={18} />
+        </Link>
+        <Link
+          href="/admin/powers"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-mist"
+          aria-label="Powers"
+        >
+          <ListMusic size={18} />
         </Link>
         <Link
           href="/admin/nueva"

@@ -1,0 +1,62 @@
+import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
+import { Pencil } from "lucide-react";
+import { requireAdmin } from "@/lib/session";
+import { getSetlist } from "@/lib/setlists";
+
+export default async function ViewPowerPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const authorized = await requireAdmin();
+  if (!authorized) redirect("/admin/login");
+
+  const { id } = await params;
+  const setlist = await getSetlist(id).catch(() => null);
+  if (!setlist) notFound();
+
+  const setParam = setlist.songs.map((s) => s.id).join(",");
+
+  return (
+    <main className="flex flex-1 flex-col pt-12">
+      <div className="mb-6 flex items-center justify-between px-5">
+        <div>
+          <span className="text-xs uppercase tracking-[0.3em] text-lilac-light">Power</span>
+          <h1 className="font-display text-2xl text-mist">{setlist.title}</h1>
+        </div>
+        <Link
+          href={`/admin/powers/${setlist.id}/editar`}
+          aria-label="Editar power"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-mist"
+        >
+          <Pencil size={18} />
+        </Link>
+      </div>
+
+      {setlist.songs.length === 0 ? (
+        <p className="px-5 text-sm text-lilac-light">Este power no tiene canciones todavía.</p>
+      ) : (
+        <ul className="flex flex-col gap-2 px-5 pb-10">
+          {setlist.songs.map((song, i) => (
+            <li key={song.id}>
+              <Link
+                href={`/canciones/${song.id}?set=${setParam}&i=${i}`}
+                className="flex items-center gap-3 rounded-2xl border border-plum/60 bg-night/40 px-4 py-3 active:bg-night/70"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs text-lilac-light">
+                  {i + 1}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-mist">{song.title}</span>
+                  <span className="block truncate text-sm text-lilac-light">{song.artist}</span>
+                </span>
+                <span className="shrink-0 font-mono text-sm text-chord-gold">{song.originalKey}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
+  );
+}
