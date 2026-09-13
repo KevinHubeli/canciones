@@ -90,7 +90,7 @@ export function linesToBody(lines: Line[]): string {
     }
 
     if (line.chords.length > 0) {
-      out.push(line.chords.map((c) => `[${c.name}]`).join(" "));
+      out.push(chordsOnlyLine(line.chords));
       i += 1;
       continue;
     }
@@ -110,6 +110,23 @@ function mergeChordsIntoLyric(chords: ChordMark[], lyric: string): string {
     last = pos;
   }
   result += lyric.slice(last);
+  return result;
+}
+
+/**
+ * Une acordes sueltos (sin letra debajo, ej. una intro instrumental) dejando
+ * el espacio suficiente para que, al re-parsear con parseSongLine, ningún
+ * nombre de acorde quede pisando al siguiente en la fila que se dibuja.
+ */
+function chordsOnlyLine(chords: ChordMark[]): string {
+  let result = "";
+  chords.forEach((chord, i) => {
+    if (i > 0) {
+      const gap = Math.max(2, chords[i - 1].name.length);
+      result += " ".repeat(gap);
+    }
+    result += `[${chord.name}]`;
+  });
   return result;
 }
 
