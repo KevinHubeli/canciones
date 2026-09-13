@@ -122,8 +122,8 @@ function chordsOnlyLine(chords: ChordMark[]): string {
   let result = "";
   chords.forEach((chord, i) => {
     if (i > 0) {
-      const gap = Math.max(2, chords[i - 1].name.length);
-      result += " ".repeat(gap);
+      // +1 para que quede al menos una columna vacía entre acorde y acorde.
+      result += " ".repeat(chords[i - 1].name.length + 1);
     }
     result += `[${chord.name}]`;
   });
