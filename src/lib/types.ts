@@ -4,6 +4,7 @@ export type SongSummary = {
   artist: string;
   originalKey: string;
   category: string | null;
+  tags: string[];
   updatedAt: string;
 };
 

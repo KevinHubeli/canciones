@@ -1,7 +1,8 @@
-import { asc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, arrayOverlaps, asc, eq, ilike, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { songs, type SongRow } from "@/db/schema";
 import type { Song, SongSummary } from "@/lib/types";
+import { NO_CHORDS_FILTER } from "@/lib/tags";
 
 function toSummary(row: SongRow): SongSummary {
   return {
@@ -10,6 +11,7 @@ function toSummary(row: SongRow): SongSummary {
     artist: row.artist,
     originalKey: row.originalKey,
     category: row.category,
+    tags: row.tags,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -18,15 +20,28 @@ function toSong(row: SongRow): Song {
   return { ...toSummary(row), body: row.body };
 }
 
+const NO_CHORDS_SQL = sql`${songs.body} !~ '\[[^\]]+\]'`;
+
 export async function listSongs(params: {
   q?: string;
+  tags?: string[];
   limit: number;
   offset: number;
 }): Promise<{ songs: SongSummary[]; hasMore: boolean }> {
   const db = getDb();
-  const where = params.q
-    ? or(ilike(songs.title, `%${params.q}%`), ilike(songs.artist, `%${params.q}%`))
-    : undefined;
+  const conditions = [];
+  if (params.q) {
+    conditions.push(or(ilike(songs.title, `%${params.q}%`), ilike(songs.artist, `%${params.q}%`)));
+  }
+  if (params.tags && params.tags.length > 0) {
+    const realTags = params.tags.filter((t) => t !== NO_CHORDS_FILTER);
+    const wantsNoChords = params.tags.includes(NO_CHORDS_FILTER);
+    const tagConditions = [];
+    if (realTags.length > 0) tagConditions.push(arrayOverlaps(songs.tags, realTags));
+    if (wantsNoChords) tagConditions.push(NO_CHORDS_SQL);
+    conditions.push(or(...tagConditions));
+  }
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   const rows = await db
     .select()
@@ -62,6 +77,7 @@ export async function createSong(input: {
   artist: string;
   originalKey: string;
   category?: string | null;
+  tags?: string[];
   body: string;
 }): Promise<Song> {
   const [row] = await getDb().insert(songs).values(input).returning();
@@ -90,6 +106,7 @@ export async function updateSong(
     artist: string;
     originalKey: string;
     category: string | null;
+    tags: string[];
     body: string;
   }>
 ): Promise<Song | null> {

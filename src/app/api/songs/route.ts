@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSong, listSongs } from "@/lib/songs";
 import { requireAdmin } from "@/lib/session";
+import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
+const ALL_FILTERS: string[] = [...SONG_TAGS, NO_CHORDS_FILTER];
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const q = params.get("q")?.trim() || undefined;
+  const tags = params
+    .getAll("tag")
+    .map((t) => t.trim())
+    .filter((t) => ALL_FILTERS.includes(t));
   const limit = Math.min(
     MAX_LIMIT,
     Math.max(1, Number(params.get("limit")) || DEFAULT_LIMIT)
@@ -15,7 +21,7 @@ export async function GET(request: NextRequest) {
   const offset = Math.max(0, Number(params.get("offset")) || 0);
 
   try {
-    const result = await listSongs({ q, limit, offset });
+    const result = await listSongs({ q, tags, limit, offset });
     return NextResponse.json(result);
   } catch (err) {
     console.error("GET /api/songs failed:", err);
@@ -36,6 +42,7 @@ export async function POST(request: NextRequest) {
     artist?: unknown;
     originalKey?: unknown;
     category?: unknown;
+    tags?: unknown;
     body?: unknown;
   };
   try {
@@ -63,6 +70,11 @@ export async function POST(request: NextRequest) {
         typeof body.category === "string" && body.category.trim()
           ? body.category.trim()
           : null,
+      tags: Array.isArray(body.tags)
+        ? body.tags.filter(
+            (t): t is string => typeof t === "string" && (SONG_TAGS as readonly string[]).includes(t)
+          )
+        : [],
       body: body.body,
     });
     return NextResponse.json({ song });

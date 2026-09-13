@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteSong, getSong, updateSong } from "@/lib/songs";
 import { requireAdmin } from "@/lib/session";
+import { SONG_TAGS } from "@/lib/tags";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -49,6 +50,7 @@ export async function PATCH(
     artist: string;
     originalKey: string;
     category: string | null;
+    tags: string[];
     body: string;
   }> = {};
   if (typeof body.title === "string" && body.title.trim()) update.title = body.title.trim();
@@ -56,6 +58,11 @@ export async function PATCH(
   if (typeof body.originalKey === "string" && body.originalKey.trim())
     update.originalKey = body.originalKey.trim();
   if (typeof body.category === "string") update.category = body.category.trim() || null;
+  if (Array.isArray(body.tags)) {
+    update.tags = body.tags.filter(
+      (t): t is string => typeof t === "string" && (SONG_TAGS as readonly string[]).includes(t)
+    );
+  }
   if (typeof body.body === "string" && body.body.trim()) update.body = body.body;
 
   try {

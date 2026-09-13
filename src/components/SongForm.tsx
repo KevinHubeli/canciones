@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Song } from "@/lib/types";
 import ChordLine from "@/components/ChordLine";
+import { SONG_TAGS } from "@/lib/tags";
 
 const inputClass =
   "rounded-2xl border border-plum bg-night/50 px-4 py-3 text-mist placeholder:text-lilac-light/70 focus:outline-none focus:ring-2 focus:ring-accent";
@@ -14,6 +15,7 @@ export default function SongForm({ initial }: { initial?: Song }) {
   const [artist, setArtist] = useState(initial?.artist ?? "");
   const [originalKey, setOriginalKey] = useState(initial?.originalKey ?? "C");
   const [category, setCategory] = useState(initial?.category ?? "");
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [body, setBody] = useState(initial?.body ?? "");
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
@@ -56,7 +58,7 @@ export default function SongForm({ initial }: { initial?: Song }) {
       const res = await fetch(initial ? `/api/songs/${initial.id}` : "/api/songs", {
         method: initial ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, artist, originalKey, category, body }),
+        body: JSON.stringify({ title, artist, originalKey, category, tags, body }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -151,6 +153,32 @@ export default function SongForm({ initial }: { initial?: Song }) {
           <input value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass} />
         </Field>
       </div>
+      <Field label="Tags">
+        <div className="flex flex-wrap gap-2">
+          {SONG_TAGS.map((tag) => {
+            const active = tags.includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() =>
+                  setTags((prev) =>
+                    prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+                  )
+                }
+                aria-pressed={active}
+                className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                  active
+                    ? "border-accent bg-accent text-night"
+                    : "border-plum bg-night/50 text-lilac-light"
+                }`}
+              >
+                {tag}
+              </button>
+            );
+          })}
+        </div>
+      </Field>
       <Field label="Letra con acordes (ej: [Dm]Cantare a [Gm]Jehová)">
         <textarea
           value={body}
