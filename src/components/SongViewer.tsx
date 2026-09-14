@@ -40,7 +40,7 @@ export default function SongViewer({
   const [activeChord, setActiveChord] = useState<string | null>(null);
   const [maxCharsPerRow, setMaxCharsPerRow] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const measureRef = useRef<HTMLSpanElement | null>(null);
 
   const lines = useMemo(() => song.body.split("\n"), [song.body]);
   const fontSizePx = PREFERRED_PX[textSizeIndex];
@@ -53,16 +53,20 @@ export default function SongViewer({
     if (!container) return;
 
     function measure() {
-      if (!container) return;
-      const available = container.clientWidth - 8;
+      if (!container || !measureRef.current) return;
+      const style = getComputedStyle(container);
+      // clientWidth incluye el padding horizontal del contenedor (px-5):
+      // sin restarlo acá, el cálculo asumía más ancho real del que había.
+      const paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const available = container.clientWidth - paddingX - 4;
       if (available <= 0) return;
 
-      canvasRef.current ??= document.createElement("canvas");
-      const ctx = canvasRef.current.getContext("2d");
-      if (!ctx) return;
-
-      ctx.font = `${fontSizePx}px ${getComputedStyle(container).fontFamily}`;
-      const chWidth = ctx.measureText("0").width || fontSizePx * 0.6;
+      // Se mide con un elemento real (mismas clases que las líneas de
+      // letra) en vez de un canvas: un canvas puede resolver la fuente
+      // monoespaciada con métricas levemente distintas a como el navegador
+      // termina renderizando el texto real, y eso desalineaba el corte.
+      const REF_LEN = 100;
+      const chWidth = measureRef.current.getBoundingClientRect().width / REF_LEN || fontSizePx * 0.6;
       setMaxCharsPerRow(Math.max(4, Math.floor(available / chWidth)));
     }
 
@@ -122,6 +126,13 @@ export default function SongViewer({
           if (target?.dataset.chord) setActiveChord(target.dataset.chord);
         }}
       >
+        <span
+          ref={measureRef}
+          aria-hidden
+          className="pointer-events-none absolute left-0 top-0 -z-10 whitespace-pre font-mono opacity-0"
+        >
+          {"0".repeat(100)}
+        </span>
         {lines.map((line, i) => (
           <ChordLine
             key={i}

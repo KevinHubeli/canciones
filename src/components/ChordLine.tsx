@@ -27,10 +27,20 @@ export default function ChordLine({
   const { lyrics, chords } = parseSongLine(raw);
 
   if (chords.length === 0) {
+    const plainRows = maxCharsPerRow
+      ? wrapLine<ResolvedChord>(lyrics, [], maxCharsPerRow)
+      : [{ lyrics, chords: [] as ResolvedChord[] }];
     return (
-      <div className={`whitespace-pre font-mono ${textSizeClass} leading-relaxed text-mist/90`}>
-        {lyrics || " "}
-      </div>
+      <>
+        {plainRows.map((row, ri) => (
+          <div
+            key={ri}
+            className={`whitespace-pre font-mono ${textSizeClass} leading-relaxed text-mist/90`}
+          >
+            {row.lyrics || " "}
+          </div>
+        ))}
+      </>
     );
   }
 
