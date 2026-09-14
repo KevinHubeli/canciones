@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { Pencil } from "lucide-react";
+import { Download, Pencil } from "lucide-react";
 import { requireAdmin } from "@/lib/session";
 import { getSetlist } from "@/lib/setlists";
 
@@ -25,13 +25,24 @@ export default async function ViewPowerPage({
           <span className="text-xs uppercase tracking-[0.3em] text-lilac-light">Power</span>
           <h1 className="font-display text-2xl text-mist">{setlist.title}</h1>
         </div>
-        <Link
-          href={`/admin/powers/${setlist.id}/editar`}
-          aria-label="Editar power"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-mist"
-        >
-          <Pencil size={18} />
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          {setlist.songs.length > 0 && (
+            <a
+              href={`/api/setlists/${setlist.id}/export-pptx`}
+              aria-label="Exportar a PowerPoint"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-mist"
+            >
+              <Download size={18} />
+            </a>
+          )}
+          <Link
+            href={`/admin/powers/${setlist.id}/editar`}
+            aria-label="Editar power"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-mist"
+          >
+            <Pencil size={18} />
+          </Link>
+        </div>
       </div>
 
       {setlist.songs.length === 0 ? (
