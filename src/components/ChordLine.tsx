@@ -35,7 +35,7 @@ export default function ChordLine({
         {plainRows.map((row, ri) => (
           <div
             key={ri}
-            className={`whitespace-pre font-mono ${textSizeClass} leading-relaxed text-mist/90`}
+            className={`whitespace-pre font-mono ${textSizeClass} leading-relaxed text-mist/90 [break-inside:avoid]`}
           >
             {row.lyrics || " "}
           </div>
@@ -61,7 +61,7 @@ export default function ChordLine({
       {rows.map((row, ri) => (
         <div
           key={ri}
-          className={`relative whitespace-pre font-mono ${textSizeClass} leading-relaxed pt-[1.3em]`}
+          className={`relative whitespace-pre font-mono ${textSizeClass} leading-relaxed pt-[1.3em] [break-inside:avoid]`}
         >
           <div className="absolute inset-x-0 top-0 h-[1.3em]">
             {row.chords.map((c, i) => (

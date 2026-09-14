@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Song } from "@/lib/types";
-import { displayChord, type ChordNotation } from "@/lib/chords";
+import { displayChord, parseSongLine, type ChordNotation } from "@/lib/chords";
 import ChordLine from "@/components/ChordLine";
 import FabMenu from "@/components/FabMenu";
 import ChordDiagramPopover from "@/components/ChordDiagramPopover";
@@ -40,11 +40,22 @@ export default function SongViewer({
   const [diagramMode, setDiagramMode] = useState(false);
   const [activeChord, setActiveChord] = useState<string | null>(null);
   const [maxCharsPerRow, setMaxCharsPerRow] = useState<number | null>(null);
+  const [columnWidthPx, setColumnWidthPx] = useState<number | null>(null);
+  const [isWide, setIsWide] = useState(false);
+  const [columnHeightPx, setColumnHeightPx] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement | null>(null);
 
   const lines = useMemo(() => song.body.split("\n"), [song.body]);
   const fontSizePx = PREFERRED_PX[textSizeIndex];
+
+  // Ancho de columna "de lectura" ideal para esta canción en particular: la
+  // línea más larga que tenga, así una canción de versos cortos usa menos
+  // ancho por columna (y entran más columnas) que una de versos largos.
+  const readingChars = useMemo(() => {
+    const longest = lines.reduce((max, l) => Math.max(max, parseSongLine(l).lyrics.length), 0);
+    return Math.min(50, Math.max(24, longest));
+  }, [lines]);
 
   // Cuántos caracteres monoespaciados entran en el ancho disponible, al
   // tamaño de letra elegido. Cualquier línea más larga que eso se corta en
@@ -68,14 +79,43 @@ export default function SongViewer({
       // termina renderizando el texto real, y eso desalineaba el corte.
       const REF_LEN = 100;
       const chWidth = measureRef.current.getBoundingClientRect().width / REF_LEN || fontSizePx * 0.6;
-      setMaxCharsPerRow(Math.max(4, Math.floor(available / chWidth)));
+
+      // En pantalla ancha (celular horizontal, tablet) sobra espacio a los
+      // costados si dejamos una sola columna que ocupa todo el ancho. Para
+      // esos casos se usa el ancho "de lectura" de esta canción (no todo el
+      // disponible) y se deja que el CSS reparta en 2+ columnas solas; en
+      // vertical se sigue usando el ancho completo, como siempre.
+      const landscape = container.clientWidth > container.clientHeight;
+      const COLUMN_GAP_PX = 40; // 2.5rem, tiene que matchear el columnGap de abajo
+
+      const colWidthPx = readingChars * chWidth + paddingX;
+      const fitsTwoColumns = landscape && container.clientWidth > colWidthPx * 2 + COLUMN_GAP_PX;
+
+      if (fitsTwoColumns) {
+        setMaxCharsPerRow(readingChars);
+        setColumnWidthPx(colWidthPx);
+        setIsWide(true);
+        // Un contenedor con columnas necesita una altura explícita en
+        // píxeles para repartir el contenido entre columnas: si la altura
+        // sale solo del flex (flex-1), algunos navegadores no fragmentan
+        // bien y todo se apila en una sola columna igual.
+        setColumnHeightPx(container.clientHeight);
+      } else {
+        // No entran 2 columnas de lectura completas: mejor usar todo el
+        // ancho disponible en una sola columna (como en vertical) que dejar
+        // una columna angosta con medio celular vacío al lado.
+        setMaxCharsPerRow(Math.max(4, Math.floor(available / chWidth)));
+        setColumnWidthPx(null);
+        setIsWide(false);
+        setColumnHeightPx(null);
+      }
     }
 
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [fontSizePx]);
+  }, [fontSizePx, readingChars]);
 
   useEffect(() => {
     try {
@@ -88,6 +128,10 @@ export default function SongViewer({
   useEffect(() => {
     addRecentSong({ id: song.id, title: song.title, artist: song.artist });
   }, [song.id, song.title, song.artist]);
+
+  useEffect(() => {
+    if (isWide) setAutoScroll(false);
+  }, [isWide]);
 
   useEffect(() => {
     if (!autoScroll) return;
@@ -110,7 +154,7 @@ export default function SongViewer({
   }, []);
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex h-[100dvh] flex-col">
       <div className="px-5 pb-2 pt-6 animate-fade-in">
         <span className="text-xs uppercase tracking-[0.3em] text-lilac-light">{song.artist}</span>
         <h1 className="font-display text-2xl text-mist">{song.title}</h1>
@@ -123,8 +167,20 @@ export default function SongViewer({
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden px-5 pb-32 font-mono"
-        style={{ fontSize: `${fontSizePx}px` }}
+        className={`min-h-0 flex-1 px-5 pb-32 font-mono ${
+          isWide ? "overflow-x-auto overflow-y-hidden" : "overflow-y-auto overflow-x-hidden"
+        }`}
+        style={{
+          fontSize: `${fontSizePx}px`,
+          ...(isWide && columnWidthPx && columnHeightPx
+            ? {
+                columnWidth: `${columnWidthPx}px`,
+                columnGap: "2.5rem",
+                columnFill: "auto" as const,
+                height: `${columnHeightPx}px`,
+              }
+            : {}),
+        }}
         onClick={(e) => {
           if (!diagramMode) return;
           const target = (e.target as HTMLElement).closest<HTMLElement>("[data-chord]");
@@ -164,6 +220,7 @@ export default function SongViewer({
         onToggleNotation={() => setNotation((n) => (n === "en" ? "latin" : "en"))}
         textSizeIndex={textSizeIndex}
         onChangeTextSizeIndex={setTextSizeIndex}
+        showAutoScroll={!isWide}
       />
 
       {activeChord && (

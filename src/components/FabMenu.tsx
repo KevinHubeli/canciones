@@ -28,6 +28,7 @@ type Props = {
   onToggleNotation: () => void;
   textSizeIndex: number;
   onChangeTextSizeIndex: (index: number) => void;
+  showAutoScroll?: boolean;
 };
 
 type PanelId = "tone" | "text" | null;
@@ -46,6 +47,7 @@ export default function FabMenu({
   onToggleNotation,
   textSizeIndex,
   onChangeTextSizeIndex,
+  showAutoScroll = true,
 }: Props) {
   const [panel, setPanel] = useState<PanelId>(null);
 
@@ -88,12 +90,14 @@ export default function FabMenu({
 
       {menuOpen && (
         <div className="flex flex-col items-end gap-2.5">
-          <FabButton
-            label="Desfile Automático"
-            onClick={onToggleAutoScroll}
-            active={autoScroll}
-            icon={<ListMusic size={20} />}
-          />
+          {showAutoScroll && (
+            <FabButton
+              label="Desfile Automático"
+              onClick={onToggleAutoScroll}
+              active={autoScroll}
+              icon={<ListMusic size={20} />}
+            />
+          )}
           <FabButton
             label="Diagramas de Acordes"
             onClick={onToggleDiagramMode}
