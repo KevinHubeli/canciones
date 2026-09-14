@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import PptxGenJS from "pptxgenjs";
-import { requireAdmin } from "@/lib/session";
 import { getSetlist } from "@/lib/setlists";
 import { getSong } from "@/lib/songs";
 import { parseSongLine } from "@/lib/chords";
@@ -36,10 +35,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
-
+  // Igual que ver el power: público por link, sin necesitar la clave de admin.
   const { id } = await params;
   if (!UUID_RE.test(id)) {
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });

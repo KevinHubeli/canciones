@@ -1,17 +1,13 @@
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Download, Pencil } from "lucide-react";
-import { requireAdmin } from "@/lib/session";
+import { Download } from "lucide-react";
 import { getSetlist } from "@/lib/setlists";
 
-export default async function ViewPowerPage({
+export default async function PublicPowerPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const authorized = await requireAdmin();
-  if (!authorized) redirect("/admin/login");
-
   const { id } = await params;
   const setlist = await getSetlist(id).catch(() => null);
   if (!setlist) notFound();
@@ -25,24 +21,15 @@ export default async function ViewPowerPage({
           <span className="text-xs uppercase tracking-[0.3em] text-lilac-light">Power</span>
           <h1 className="font-display text-2xl text-mist">{setlist.title}</h1>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {setlist.songs.length > 0 && (
-            <a
-              href={`/api/setlists/${setlist.id}/export-pptx`}
-              aria-label="Exportar a PowerPoint"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-plum/60 text-mist"
-            >
-              <Download size={18} />
-            </a>
-          )}
-          <Link
-            href={`/admin/powers/${setlist.id}/editar`}
-            aria-label="Editar power"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-plum/60 text-mist"
+        {setlist.songs.length > 0 && (
+          <a
+            href={`/api/setlists/${setlist.id}/export-pptx`}
+            aria-label="Exportar a PowerPoint"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-plum/60 text-mist"
           >
-            <Pencil size={18} />
-          </Link>
-        </div>
+            <Download size={18} />
+          </a>
+        )}
       </div>
 
       {setlist.songs.length === 0 ? (

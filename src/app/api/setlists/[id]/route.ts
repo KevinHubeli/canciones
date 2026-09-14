@@ -9,9 +9,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
+  // Ver un power puntual es público (por link, sin listar): así cualquier
+  // músico puede abrirlo en su celular sin necesitar la clave de admin.
   const { id } = await params;
   if (!UUID_RE.test(id)) {
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });

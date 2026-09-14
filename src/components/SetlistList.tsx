@@ -2,12 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Share2, Trash2 } from "lucide-react";
 import type { SetlistSummary } from "@/lib/setlists";
 import Spinner from "@/components/Spinner";
 
 export default function SetlistList() {
   const [setlists, setSetlists] = useState<SetlistSummary[] | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  async function handleShare(id: string) {
+    const url = `${window.location.origin}/powers/${id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 1800);
+    } catch {
+      prompt("Copiá el link:", url);
+    }
+  }
 
   async function load() {
     const res = await fetch("/api/setlists");
@@ -50,11 +62,18 @@ export default function SetlistList() {
               key={s.id}
               className="flex items-center justify-between gap-2 rounded-2xl border border-plum/60 bg-night/40 px-4 py-3"
             >
-              <Link href={`/admin/powers/${s.id}`} className="min-w-0 flex-1">
+              <Link href={`/powers/${s.id}`} className="min-w-0 flex-1">
                 <p className="truncate font-medium text-mist">{s.title}</p>
                 <p className="text-sm text-lilac-light">{s.songCount} canciones</p>
               </Link>
               <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => handleShare(s.id)}
+                  aria-label="Copiar link para compartir"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
+                >
+                  {copiedId === s.id ? <Check size={16} /> : <Share2 size={16} />}
+                </button>
                 <Link
                   href={`/admin/powers/${s.id}/editar`}
                   aria-label="Editar"
