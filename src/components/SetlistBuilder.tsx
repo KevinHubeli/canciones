@@ -92,6 +92,22 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
         className="rounded-2xl border border-plum bg-night/50 px-4 py-3 text-mist placeholder:text-lilac-light/70 focus:outline-none focus:ring-2 focus:ring-accent"
       />
 
+      {error && <p className="rounded-xl bg-accent/20 px-3 py-2 text-sm text-mist">{error}</p>}
+
+      <button
+        onClick={handleSave}
+        disabled={saving || !title.trim() || selected.length === 0}
+        className="rounded-full bg-accent py-3 text-sm font-semibold text-night disabled:opacity-60"
+      >
+        {saving
+          ? "Guardando..."
+          : !title.trim()
+            ? "Ponele un nombre al power para guardar"
+            : selected.length === 0
+              ? "Agregá al menos una canción"
+              : "Guardar power"}
+      </button>
+
       {selected.length > 0 && (
         <div className="rounded-2xl border border-plum/60 bg-night/40 p-3">
           <span className="mb-2 block text-xs uppercase tracking-wide text-lilac-light">
@@ -189,16 +205,6 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
           })}
         </ul>
       )}
-
-      {error && <p className="rounded-xl bg-accent/20 px-3 py-2 text-sm text-mist">{error}</p>}
-
-      <button
-        onClick={handleSave}
-        disabled={saving || !title.trim() || selected.length === 0}
-        className="rounded-full bg-accent py-3 text-sm font-semibold text-night disabled:opacity-60"
-      >
-        {saving ? "Guardando..." : "Guardar power"}
-      </button>
     </div>
   );
 }
