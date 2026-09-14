@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, UserRound } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const ITEMS = [
   { href: "/", label: "Inicio", icon: Home },
@@ -32,6 +33,8 @@ export default function BottomNav() {
             </Link>
           );
         })}
+        <div className="mx-0.5 h-5 w-px bg-plum" aria-hidden />
+        <ThemeToggle />
       </div>
     </nav>
   );

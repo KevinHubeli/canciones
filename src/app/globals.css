@@ -1,13 +1,40 @@
 @import "tailwindcss";
 
+/* "Papel y Ceniza": los mismos tokens se invierten entre claro y oscuro,
+   así ningún componente necesita saber en qué modo está. */
 :root {
-  --color-night: #0a0a0b;
-  --color-plum-deep: #19191b;
-  --color-plum: #2e2e31;
-  --color-mist: #f2f2f0;
-  --color-lilac-light: #9a9a9d;
-  --color-chord-gold: #ff5a3c;
-  --color-accent: #e2231a;
+  color-scheme: light;
+  --color-night: #ffffff;
+  --color-plum-deep: #f6f3ee;
+  --color-plum: #e4dfd6;
+  --color-mist: #2a2723;
+  --color-lilac-light: #8a8073;
+  --color-chord-gold: #b23a2e;
+  --color-accent: #b23a2e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --color-night: #221f1d;
+    --color-plum-deep: #1a1918;
+    --color-plum: #33302c;
+    --color-mist: #e8e4dd;
+    --color-lilac-light: #8c8680;
+    --color-chord-gold: #b9a186;
+    --color-accent: #b9a186;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-night: #221f1d;
+  --color-plum-deep: #1a1918;
+  --color-plum: #33302c;
+  --color-mist: #e8e4dd;
+  --color-lilac-light: #8c8680;
+  --color-chord-gold: #b9a186;
+  --color-accent: #b9a186;
 }
 
 @theme inline {
@@ -18,9 +45,9 @@
   --color-lilac-light: var(--color-lilac-light);
   --color-chord-gold: var(--color-chord-gold);
   --color-accent: var(--color-accent);
-  --font-sans: var(--font-quicksand);
-  --font-display: var(--font-cinzel);
-  --font-mono: var(--font-jetbrains);
+  --font-sans: var(--font-manrope);
+  --font-display: var(--font-manrope);
+  --font-mono: var(--font-plex-mono);
 
   --animate-fade-in: fade-in 0.8s ease-out both;
 
@@ -38,7 +65,6 @@
 
 html {
   -webkit-tap-highlight-color: transparent;
-  color-scheme: dark;
 }
 
 body {
@@ -53,5 +79,6 @@ body {
 }
 
 .font-display {
-  font-family: var(--font-display), serif;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
 }

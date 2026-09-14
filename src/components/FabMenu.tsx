@@ -127,7 +127,7 @@ export default function FabMenu({
         }}
         aria-label={menuOpen ? "Ocultar menú" : "Mostrar menú"}
         aria-pressed={menuOpen}
-        className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-mist shadow-[0_10px_25px_-8px_rgba(240,130,74,0.7)]"
+        className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-night shadow-[0_10px_25px_-8px_rgba(0,0,0,0.5)]"
       >
         <Eye
           size={22}
@@ -162,7 +162,7 @@ function FabButton({
       onClick={onClick}
       aria-pressed={active}
       className={`flex h-12 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm font-medium shadow-lg transition-colors ${
-        active ? "bg-accent text-mist" : "bg-night/90 text-lilac-light"
+        active ? "bg-accent text-night" : "bg-night/90 text-lilac-light"
       }`}
     >
       {icon}
@@ -184,7 +184,7 @@ function RoundButton({
     <button
       onClick={onClick}
       aria-label={label}
-      className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-mist active:scale-95"
+      className="flex h-10 w-10 items-center justify-center rounded-full bg-plum/60 text-mist active:scale-95"
     >
       {children}
     </button>

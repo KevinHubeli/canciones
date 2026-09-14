@@ -74,7 +74,7 @@ export default function AutoMatchChords() {
           onClick={() => {
             stopRef.current = true;
           }}
-          className="rounded-full bg-white/10 py-3 text-sm font-semibold text-mist"
+          className="rounded-full bg-plum/60 py-3 text-sm font-semibold text-mist"
         >
           Detener
         </button>
@@ -82,7 +82,7 @@ export default function AutoMatchChords() {
 
       {(running || log.length > 0) && (
         <div>
-          <div className="mb-2 h-2 overflow-hidden rounded-full bg-white/10">
+          <div className="mb-2 h-2 overflow-hidden rounded-full bg-plum/60">
             <div
               className="h-full bg-accent transition-all"
               style={{ width: `${songs.length ? (progress / songs.length) * 100 : 0}%` }}
@@ -102,7 +102,7 @@ export default function AutoMatchChords() {
               key={i}
               className={`rounded-xl px-3 py-2 text-sm ${
                 entry.status === "matched"
-                  ? "bg-white/10 text-mist"
+                  ? "bg-plum/60 text-mist"
                   : "bg-transparent text-lilac-light"
               }`}
             >

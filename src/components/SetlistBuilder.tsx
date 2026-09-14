@@ -99,7 +99,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
         disabled={saving || !title.trim() || selected.length === 0}
         className={`rounded-full py-3 text-sm font-semibold ${
           saving || !title.trim() || selected.length === 0
-            ? "bg-white/10 text-lilac-light"
+            ? "bg-plum/60 text-lilac-light"
             : "bg-accent text-night"
         }`}
       >
@@ -129,7 +129,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                   onClick={() => move(i, -1)}
                   disabled={i === 0}
                   aria-label="Subir"
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-lilac-light disabled:opacity-30"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light disabled:opacity-30"
                 >
                   <ArrowUp size={14} />
                 </button>
@@ -137,14 +137,14 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                   onClick={() => move(i, 1)}
                   disabled={i === selected.length - 1}
                   aria-label="Bajar"
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-lilac-light disabled:opacity-30"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light disabled:opacity-30"
                 >
                   <ArrowDown size={14} />
                 </button>
                 <button
                   onClick={() => removeSong(song.id)}
                   aria-label="Quitar"
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-lilac-light"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light"
                 >
                   <X size={14} />
                 </button>
@@ -200,7 +200,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                   onClick={() => addSong(song)}
                   disabled={added}
                   aria-label="Agregar al power"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-mist disabled:opacity-30"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-plum/60 text-mist disabled:opacity-30"
                 >
                   <Plus size={16} />
                 </button>

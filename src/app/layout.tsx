@@ -1,25 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Quicksand, Cinzel, JetBrains_Mono } from "next/font/google";
+import { Manrope, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import SpaBackground from "@/components/SpaBackground";
 import BottomNav from "@/components/BottomNav";
 
-const quicksand = Quicksand({
-  variable: "--font-quicksand",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
-const cinzel = Cinzel({
-  variable: "--font-cinzel",
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -32,8 +26,22 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#2e2338",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f3ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#1a1918" },
+  ],
 };
+
+// Aplica el tema guardado antes de pintar, para que no haya un flash del
+// tema equivocado al cargar (no se puede leer localStorage en el server).
+const THEME_INIT_SCRIPT = `
+try {
+  var t = localStorage.getItem("cancionero:theme");
+  if (t === "light" || t === "dark") {
+    document.documentElement.setAttribute("data-theme", t);
+  }
+} catch (e) {}
+`;
 
 export default function RootLayout({
   children,
@@ -43,8 +51,11 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${quicksand.variable} ${cinzel.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${manrope.variable} ${plexMono.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="relative min-h-full flex flex-col bg-plum-deep text-mist overflow-x-hidden">
         <SpaBackground />
         <div className="relative z-10 flex min-h-full flex-1 flex-col pb-24">

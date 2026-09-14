@@ -69,7 +69,7 @@ export default function HolyricsImportForm() {
 
       {error && <p className="rounded-xl bg-accent/20 px-3 py-2 text-sm text-mist">{error}</p>}
       {result && (
-        <p className="rounded-xl bg-white/10 px-3 py-2 text-sm text-mist">
+        <p className="rounded-xl bg-plum/60 px-3 py-2 text-sm text-mist">
           Se importaron {result.inserted} canciones.
           {result.skipped > 0 ? ` Se ignoraron ${result.skipped} sin letra o sin título.` : ""}
         </p>

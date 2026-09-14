@@ -15,7 +15,7 @@ export default function LogoutButton() {
   return (
     <button
       onClick={handleLogout}
-      className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm text-mist"
+      className="flex items-center gap-2 rounded-full bg-plum/60 px-4 py-2 text-sm text-mist"
     >
       <LogOut size={16} />
       Salir

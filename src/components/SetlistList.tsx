@@ -58,14 +58,14 @@ export default function SetlistList() {
                 <Link
                   href={`/admin/powers/${s.id}/editar`}
                   aria-label="Editar"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-mist"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
                 >
                   <Pencil size={16} />
                 </Link>
                 <button
                   onClick={() => handleDelete(s.id)}
                   aria-label="Eliminar"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-mist"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
                 >
                   <Trash2 size={16} />
                 </button>

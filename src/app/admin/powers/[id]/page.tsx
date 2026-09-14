@@ -30,7 +30,7 @@ export default async function ViewPowerPage({
             <a
               href={`/api/setlists/${setlist.id}/export-pptx`}
               aria-label="Exportar a PowerPoint"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-mist"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-plum/60 text-mist"
             >
               <Download size={18} />
             </a>
@@ -38,7 +38,7 @@ export default async function ViewPowerPage({
           <Link
             href={`/admin/powers/${setlist.id}/editar`}
             aria-label="Editar power"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-mist"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-plum/60 text-mist"
           >
             <Pencil size={18} />
           </Link>
@@ -55,7 +55,7 @@ export default async function ViewPowerPage({
                 href={`/canciones/${song.id}?set=${setParam}&i=${i}`}
                 className="flex items-center gap-3 rounded-2xl border border-plum/60 bg-night/40 px-4 py-3 active:bg-night/70"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs text-lilac-light">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-plum/60 text-xs text-lilac-light">
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1">

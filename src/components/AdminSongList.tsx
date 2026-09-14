@@ -64,21 +64,21 @@ export default function AdminSongList() {
       <div className="mb-4 flex flex-wrap gap-2">
         <Link
           href="/admin/powers"
-          className="flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm text-mist"
+          className="flex items-center gap-1.5 rounded-full bg-plum/60 px-3.5 py-2 text-sm text-mist"
         >
           <ListMusic size={16} />
           Powers
         </Link>
         <Link
           href="/admin/auto-acordes"
-          className="flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm text-mist"
+          className="flex items-center gap-1.5 rounded-full bg-plum/60 px-3.5 py-2 text-sm text-mist"
         >
           <Music size={16} />
           Buscar acordes
         </Link>
         <Link
           href="/admin/importar-holyrics"
-          className="flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm text-mist"
+          className="flex items-center gap-1.5 rounded-full bg-plum/60 px-3.5 py-2 text-sm text-mist"
         >
           <Download size={16} />
           Importar Holyrics
@@ -107,14 +107,14 @@ export default function AdminSongList() {
                 <Link
                   href={`/admin/${song.id}/editar`}
                   aria-label="Editar"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-mist"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
                 >
                   <Pencil size={16} />
                 </Link>
                 <button
                   onClick={() => handleDelete(song.id)}
                   aria-label="Eliminar"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-mist"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
                 >
                   <Trash2 size={16} />
                 </button>

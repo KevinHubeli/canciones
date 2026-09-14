@@ -40,7 +40,7 @@ export default function ChordDiagramPopover({
           <button
             onClick={onClose}
             aria-label="Cerrar"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-mist"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-plum/60 text-mist"
           >
             <X size={16} />
           </button>
@@ -84,7 +84,7 @@ function Tab({
       onClick={onClick}
       disabled={disabled}
       className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-        active ? "bg-accent text-mist" : "bg-white/10 text-lilac-light"
+        active ? "bg-accent text-night" : "bg-plum/60 text-lilac-light"
       } ${disabled ? "opacity-30" : ""}`}
     >
       {label}
