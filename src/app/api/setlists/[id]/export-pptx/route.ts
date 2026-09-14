@@ -8,13 +8,28 @@ import { parseSongLine } from "@/lib/chords";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Letra sola (sin [Acordes]), para proyectar. */
-function lyricsOnly(body: string): string {
-  return body
-    .split("\n")
-    .map((line) => parseSongLine(line).lyrics)
-    .join("\n")
-    .trim();
+type Run = { text: string; options: { color: string; breakLine: boolean; bold?: boolean } };
+
+/**
+ * Convierte el body ("[Am]Cantaré") en pares de líneas chord/letra, como en
+ * las presentaciones originales: el acorde va en su propia línea, ubicado
+ * (con espacios) en la columna donde se toca sobre la palabra de abajo.
+ */
+function buildRuns(body: string): Run[] {
+  const runs: Run[] = [];
+  for (const raw of body.split("\n")) {
+    const { lyrics, chords } = parseSongLine(raw);
+    if (chords.length > 0) {
+      let chordLine = "";
+      for (const c of [...chords].sort((a, b) => a.index - b.index)) {
+        const target = Math.max(c.index, chordLine.length + (chordLine.length > 0 ? 1 : 0));
+        chordLine += " ".repeat(target - chordLine.length) + c.chord;
+      }
+      runs.push({ text: chordLine, options: { color: "FF5A3C", breakLine: true, bold: true } });
+    }
+    runs.push({ text: lyrics || " ", options: { color: "F2F2F0", breakLine: true } });
+  }
+  return runs;
 }
 
 export async function GET(
@@ -45,10 +60,10 @@ export async function GET(
   for (const song of songs) {
     if (!song) continue;
     slideCount++;
-    const lyrics = lyricsOnly(song.body);
-    const lineCount = lyrics.split("\n").length;
+    const runs = buildRuns(song.body);
     // Letra más larga -> fuente más chica, para que entre en la diapositiva.
-    const fontSize = lineCount > 22 ? 20 : lineCount > 14 ? 26 : 32;
+    const fontSize =
+      runs.length > 46 ? 12 : runs.length > 34 ? 15 : runs.length > 24 ? 18 : runs.length > 14 ? 22 : 26;
 
     const slide = pptx.addSlide();
     slide.background = { color: "0A0A0B" };
@@ -62,17 +77,16 @@ export async function GET(
       bold: true,
       fontFace: "Arial",
     });
-    slide.addText(lyrics, {
+    slide.addText(runs, {
       x: 0.5,
       y: 1.1,
       w: 12.3,
       h: 6,
       fontSize,
-      color: "F2F2F0",
-      fontFace: "Arial",
-      align: "center",
-      valign: "middle",
-      lineSpacingMultiple: 1.15,
+      fontFace: "Courier New",
+      align: "left",
+      valign: "top",
+      lineSpacingMultiple: 1.05,
     });
   }
 
