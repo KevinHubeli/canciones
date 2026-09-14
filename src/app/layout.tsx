@@ -3,6 +3,7 @@ import { Manrope, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import SpaBackground from "@/components/SpaBackground";
 import BottomNav from "@/components/BottomNav";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -20,6 +21,14 @@ export const metadata: Metadata = {
   title: "Cancionero",
   description:
     "Nuestras canciones con acordes: buscá, cambiá el tono y tocá desde el celular.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -58,6 +67,7 @@ export default function RootLayout({
       </head>
       <body className="relative min-h-full flex flex-col bg-plum-deep text-mist overflow-x-hidden">
         <SpaBackground />
+        <ServiceWorkerRegister />
         <div className="relative z-10 flex min-h-full flex-1 flex-col pb-24">
           {children}
         </div>

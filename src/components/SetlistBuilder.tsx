@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Minus, Plus, Search, X } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
-import type { Setlist, SetlistSong } from "@/lib/setlists";
+import type { RecentlyUsedSong, Setlist, SetlistSong } from "@/lib/setlists";
 import { SONG_TAGS } from "@/lib/tags";
 import { displayChord } from "@/lib/chords";
 import Spinner from "@/components/Spinner";
@@ -19,6 +19,14 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recentlyUsed, setRecentlyUsed] = useState<RecentlyUsedSong[]>([]);
+
+  useEffect(() => {
+    fetch("/api/setlists/recent-songs")
+      .then((res) => res.json())
+      .then((data) => setRecentlyUsed(data.songs ?? []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const id = setTimeout(async () => {
@@ -191,6 +199,40 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                 </div>
               </li>
             ))}
+          </ul>
+        </div>
+      )}
+
+      {!query.trim() && !activeTag && recentlyUsed.length > 0 && (
+        <div>
+          <span className="mb-2 block text-xs uppercase tracking-wide text-lilac-light">
+            Usadas últimamente (para no repetir)
+          </span>
+          <ul className="flex flex-col gap-1.5">
+            {recentlyUsed.map((song) => {
+              const added = selectedIds.has(song.id);
+              return (
+                <li
+                  key={song.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-plum/60 bg-night/40 px-3 py-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm text-mist">{song.title}</span>
+                    <span className="block truncate text-xs text-lilac-light">
+                      en &quot;{song.lastUsedIn}&quot;
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => addSong(song)}
+                    disabled={added}
+                    aria-label="Agregar al power"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-plum/60 text-mist disabled:opacity-30"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

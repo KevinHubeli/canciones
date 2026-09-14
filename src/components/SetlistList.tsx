@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Pencil, Plus, Share2, Trash2 } from "lucide-react";
 import type { SetlistSummary } from "@/lib/setlists";
 import Spinner from "@/components/Spinner";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import UndoToast from "@/components/UndoToast";
+
+const UNDO_MS = 5000;
 
 export default function SetlistList() {
   const [setlists, setSetlists] = useState<SetlistSummary[] | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SetlistSummary | null>(null);
+  const [pendingUndo, setPendingUndo] = useState<SetlistSummary | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function handleShare(id: string) {
     const url = `${window.location.origin}/powers/${id}`;
@@ -33,11 +38,29 @@ export default function SetlistList() {
     load();
   }, []);
 
-  async function handleDelete() {
+  useEffect(() => {
+    return () => {
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+    };
+  }, []);
+
+  function handleDelete() {
     if (!pendingDelete) return;
-    const res = await fetch(`/api/setlists/${pendingDelete.id}`, { method: "DELETE" });
-    if (res.ok) setSetlists((prev) => prev?.filter((s) => s.id !== pendingDelete.id) ?? null);
+    const setlist = pendingDelete;
+    setSetlists((prev) => prev?.filter((s) => s.id !== setlist.id) ?? null);
     setPendingDelete(null);
+    setPendingUndo(setlist);
+
+    undoTimer.current = setTimeout(async () => {
+      await fetch(`/api/setlists/${setlist.id}`, { method: "DELETE" });
+      setPendingUndo((prev) => (prev?.id === setlist.id ? null : prev));
+    }, UNDO_MS);
+  }
+
+  function handleUndo() {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setPendingUndo(null);
+    load();
   }
 
   return (
@@ -100,10 +123,14 @@ export default function SetlistList() {
       <ConfirmDialog
         open={pendingDelete !== null}
         title={`¿Eliminar el power "${pendingDelete?.title}"?`}
-        message="Esta acción no se puede deshacer."
+        message="Vas a poder deshacerlo unos segundos después."
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
       />
+
+      {pendingUndo && (
+        <UndoToast message={`Power "${pendingUndo.title}" eliminado`} onUndo={handleUndo} />
+      )}
     </div>
   );
 }

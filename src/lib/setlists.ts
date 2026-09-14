@@ -96,3 +96,42 @@ export async function deleteSetlist(id: string): Promise<boolean> {
   const [row] = await getDb().delete(setlists).where(eq(setlists.id, id)).returning();
   return Boolean(row);
 }
+
+export type RecentlyUsedSong = SongSummary & { lastUsedIn: string; lastUsedAt: string };
+
+/** Canciones de los últimos powers armados, para no repetir siempre las mismas. */
+export async function getRecentlyUsedSongs(limit = 20): Promise<RecentlyUsedSong[]> {
+  const db = getDb();
+  const recentSetlists = await db.select().from(setlists).orderBy(desc(setlists.updatedAt)).limit(10);
+
+  const lastUse = new Map<string, { setlistTitle: string; updatedAt: Date }>();
+  for (const row of recentSetlists) {
+    for (const songId of row.songIds) {
+      if (!lastUse.has(songId)) {
+        lastUse.set(songId, { setlistTitle: row.title, updatedAt: row.updatedAt });
+      }
+    }
+  }
+  if (lastUse.size === 0) return [];
+
+  const ids = [...lastUse.keys()];
+  const songRows = await db.select().from(songs).where(inArray(songs.id, ids));
+
+  return songRows
+    .map((s) => {
+      const meta = lastUse.get(s.id)!;
+      return {
+        id: s.id,
+        title: s.title,
+        artist: s.artist,
+        originalKey: s.originalKey,
+        category: s.category,
+        tags: s.tags,
+        updatedAt: s.updatedAt.toISOString(),
+        lastUsedIn: meta.setlistTitle,
+        lastUsedAt: meta.updatedAt.toISOString(),
+      };
+    })
+    .sort((a, b) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime())
+    .slice(0, limit);
+}

@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ListMusic, Music, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
 import Spinner from "@/components/Spinner";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import UndoToast from "@/components/UndoToast";
+
+const UNDO_MS = 5000;
 
 export default function AdminSongList() {
   const [songs, setSongs] = useState<SongSummary[]>([]);
@@ -13,6 +16,8 @@ export default function AdminSongList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SongSummary | null>(null);
+  const [pendingUndo, setPendingUndo] = useState<SongSummary | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function load(q: string) {
     setLoading(true);
@@ -36,11 +41,29 @@ export default function AdminSongList() {
     return () => clearTimeout(id);
   }, [query]);
 
-  async function handleDelete() {
+  useEffect(() => {
+    return () => {
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+    };
+  }, []);
+
+  function handleDelete() {
     if (!pendingDelete) return;
-    const res = await fetch(`/api/songs/${pendingDelete.id}`, { method: "DELETE" });
-    if (res.ok) setSongs((prev) => prev.filter((s) => s.id !== pendingDelete.id));
+    const song = pendingDelete;
+    setSongs((prev) => prev.filter((s) => s.id !== song.id));
     setPendingDelete(null);
+    setPendingUndo(song);
+
+    undoTimer.current = setTimeout(async () => {
+      await fetch(`/api/songs/${song.id}`, { method: "DELETE" });
+      setPendingUndo((prev) => (prev?.id === song.id ? null : prev));
+    }, UNDO_MS);
+  }
+
+  function handleUndo() {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setPendingUndo(null);
+    load(query.trim());
   }
 
   return (
@@ -123,10 +146,14 @@ export default function AdminSongList() {
       <ConfirmDialog
         open={pendingDelete !== null}
         title={`¿Eliminar "${pendingDelete?.title}"?`}
-        message="Esta acción no se puede deshacer."
+        message="Vas a poder deshacerlo unos segundos después."
         onConfirm={handleDelete}
         onCancel={() => setPendingDelete(null)}
       />
+
+      {pendingUndo && (
+        <UndoToast message={`"${pendingUndo.title}" eliminada`} onUndo={handleUndo} />
+      )}
     </div>
   );
 }
