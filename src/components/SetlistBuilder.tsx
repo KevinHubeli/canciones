@@ -195,7 +195,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
       <button
         onClick={handleSave}
         disabled={saving || !title.trim() || selected.length === 0}
-        className="sticky bottom-4 rounded-full bg-accent py-3 text-sm font-semibold text-night shadow-xl disabled:opacity-60"
+        className="rounded-full bg-accent py-3 text-sm font-semibold text-night disabled:opacity-60"
       >
         {saving ? "Guardando..." : "Guardar power"}
       </button>
