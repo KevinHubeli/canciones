@@ -1,4 +1,4 @@
-import { and, arrayOverlaps, asc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, arrayOverlaps, asc, eq, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { songs, type SongRow } from "@/db/schema";
 import type { Song, SongSummary } from "@/lib/types";
@@ -30,8 +30,16 @@ export async function listSongs(params: {
 }): Promise<{ songs: SongSummary[]; hasMore: boolean }> {
   const db = getDb();
   const conditions = [];
-  if (params.q) {
-    conditions.push(or(ilike(songs.title, `%${params.q}%`), ilike(songs.artist, `%${params.q}%`)));
+  const q = params.q?.trim();
+  if (q) {
+    // unaccent() para que "cancion" encuentre "canción", y similarity()
+    // (pg_trgm) para tolerar errores de tipeo, además del substring de siempre.
+    conditions.push(sql`(
+      unaccent(${songs.title}) ILIKE unaccent(${"%" + q + "%"})
+      OR unaccent(${songs.artist}) ILIKE unaccent(${"%" + q + "%"})
+      OR similarity(unaccent(${songs.title}), unaccent(${q})) > 0.25
+      OR similarity(unaccent(${songs.artist}), unaccent(${q})) > 0.25
+    )`);
   }
   if (params.tags && params.tags.length > 0) {
     const realTags = params.tags.filter((t) => t !== NO_CHORDS_FILTER);
@@ -43,11 +51,18 @@ export async function listSongs(params: {
   }
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
+  const orderBy = q
+    ? sql`GREATEST(
+        similarity(unaccent(${songs.title}), unaccent(${q})),
+        similarity(unaccent(${songs.artist}), unaccent(${q}))
+      ) DESC, ${songs.title} ASC`
+    : asc(songs.title);
+
   const rows = await db
     .select()
     .from(songs)
     .where(where)
-    .orderBy(asc(songs.title))
+    .orderBy(orderBy)
     .limit(params.limit + 1)
     .offset(params.offset);
 

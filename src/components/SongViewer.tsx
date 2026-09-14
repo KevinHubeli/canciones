@@ -8,6 +8,7 @@ import { displayChord, type ChordNotation } from "@/lib/chords";
 import ChordLine from "@/components/ChordLine";
 import FabMenu from "@/components/FabMenu";
 import ChordDiagramPopover from "@/components/ChordDiagramPopover";
+import { addRecentSong } from "@/lib/recentSongs";
 
 const TEXT_SIZE_KEY = "cancionero:textSizeIndex";
 const AUTOSCROLL_PX_PER_TICK = 2;
@@ -83,6 +84,10 @@ export default function SongViewer({
       // no pasa nada si no se puede guardar la preferencia
     }
   }, [textSizeIndex]);
+
+  useEffect(() => {
+    addRecentSong({ id: song.id, title: song.title, artist: song.artist });
+  }, [song.id, song.title, song.artist]);
 
   useEffect(() => {
     if (!autoScroll) return;

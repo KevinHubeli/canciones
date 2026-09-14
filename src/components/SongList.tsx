@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
 import Spinner from "@/components/Spinner";
 import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
+import { getRecentSongs, type RecentSong } from "@/lib/recentSongs";
 
 const PAGE_SIZE = 24;
 const ALL_FILTERS: string[] = [...SONG_TAGS, NO_CHORDS_FILTER];
@@ -18,8 +19,13 @@ export default function SongList() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recent, setRecent] = useState<RecentSong[]>([]);
   const loadingRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setRecent(getRecentSongs());
+  }, []);
 
   const load = useCallback(async (q: string, tags: string[], offset: number) => {
     if (loadingRef.current) return;
@@ -110,6 +116,29 @@ export default function SongList() {
         })}
       </div>
 
+      {!query.trim() && activeTags.length === 0 && recent.length > 0 && (
+        <div className="mb-5">
+          <span className="mb-2 block text-xs uppercase tracking-wide text-lilac-light">
+            Recientes
+          </span>
+          <ul className="flex flex-col gap-2">
+            {recent.map((song) => (
+              <li key={song.id}>
+                <Link
+                  href={`/canciones/${song.id}`}
+                  className="flex items-center gap-3 rounded-2xl border border-plum/60 bg-night/40 px-4 py-3 transition-colors active:bg-night/70"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-mist">{song.title}</span>
+                    <span className="block truncate text-sm text-lilac-light">{song.artist}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {error && songs.length === 0 && (
         <p className="py-6 text-center text-sm text-lilac-light">{error}</p>
       )}
@@ -121,7 +150,13 @@ export default function SongList() {
           No encontramos canciones{query ? ` para "${query}"` : ""}.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2 pb-6">
+        <>
+          {!query.trim() && activeTags.length === 0 && recent.length > 0 && (
+            <span className="mb-2 block text-xs uppercase tracking-wide text-lilac-light">
+              Todas las canciones
+            </span>
+          )}
+          <ul className="flex flex-col gap-2 pb-6">
           {songs.map((song) => (
             <li key={song.id}>
               <Link
@@ -148,7 +183,8 @@ export default function SongList() {
               </Link>
             </li>
           ))}
-        </ul>
+          </ul>
+        </>
       )}
 
       {hasMore && !initialLoading && (
