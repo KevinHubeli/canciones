@@ -19,16 +19,46 @@ function buildRuns(body: string): Run[] {
   for (const raw of body.split("\n")) {
     const { lyrics, chords } = parseSongLine(raw);
     if (chords.length > 0) {
-      let chordLine = "";
-      for (const c of [...chords].sort((a, b) => a.index - b.index)) {
-        const target = Math.max(c.index, chordLine.length + (chordLine.length > 0 ? 1 : 0));
-        chordLine += " ".repeat(target - chordLine.length) + c.chord;
+      let chordLine: string;
+      if (!lyrics.trim()) {
+        // Línea solo de acordes (ej. intro): sin letra abajo para alinear,
+        // así que no hace falta conservar los espacios anchos del original.
+        chordLine = chords.map((c) => c.chord).join(" ");
+      } else {
+        chordLine = "";
+        for (const c of [...chords].sort((a, b) => a.index - b.index)) {
+          const target = Math.max(c.index, chordLine.length + (chordLine.length > 0 ? 1 : 0));
+          chordLine += " ".repeat(target - chordLine.length) + c.chord;
+        }
       }
       runs.push({ text: chordLine, options: { color: "FF5A3C", breakLine: true, bold: true } });
     }
     runs.push({ text: lyrics || " ", options: { color: "F2F2F0", breakLine: true } });
   }
   return runs;
+}
+
+const BOX_WIDTH_IN = 12.3;
+const BOX_HEIGHT_IN = 6;
+const LINE_HEIGHT_FACTOR = 1.3; // alto de línea real (con interlineado) relativo al tamaño de fuente
+const CHAR_WIDTH_FACTOR = 0.62; // ancho aproximado de un carácter en Courier New
+
+/** Baja la fuente hasta que el texto (con el ancho que ocupa cada línea) entre en la caja. */
+function fitFontSize(runs: Run[]): number {
+  const boxWidthPt = BOX_WIDTH_IN * 72;
+  const boxHeightPt = BOX_HEIGHT_IN * 72;
+
+  for (let fontSize = 26; fontSize >= 9; fontSize--) {
+    const charWidthPt = fontSize * CHAR_WIDTH_FACTOR;
+    let totalLines = 0;
+    for (const r of runs) {
+      const lineWidthPt = r.text.length * charWidthPt;
+      totalLines += Math.max(1, Math.ceil(lineWidthPt / boxWidthPt));
+    }
+    const neededHeightPt = totalLines * fontSize * LINE_HEIGHT_FACTOR;
+    if (neededHeightPt <= boxHeightPt) return fontSize;
+  }
+  return 9;
 }
 
 export async function GET(
@@ -57,9 +87,9 @@ export async function GET(
     if (!song) continue;
     slideCount++;
     const runs = buildRuns(song.body);
-    // Letra más larga -> fuente más chica, para que entre en la diapositiva.
-    const fontSize =
-      runs.length > 46 ? 12 : runs.length > 34 ? 15 : runs.length > 24 ? 18 : runs.length > 14 ? 22 : 26;
+    // Se calcula el tamaño más grande que realmente entra en la caja
+    // (contando el ancho de cada línea, no solo la cantidad de líneas).
+    const fontSize = fitFontSize(runs);
 
     const slide = pptx.addSlide();
     slide.background = { color: "0A0A0B" };
@@ -76,8 +106,8 @@ export async function GET(
     slide.addText(runs, {
       x: 0.5,
       y: 1.1,
-      w: 12.3,
-      h: 6,
+      w: BOX_WIDTH_IN,
+      h: BOX_HEIGHT_IN,
       fontSize,
       fontFace: "Courier New",
       align: "left",
