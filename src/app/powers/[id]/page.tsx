@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Download } from "lucide-react";
 import { getSetlist } from "@/lib/setlists";
+import { displayChord } from "@/lib/chords";
 
 export default async function PublicPowerPage({
   params,
@@ -49,7 +50,9 @@ export default async function PublicPowerPage({
                   <span className="block truncate font-medium text-mist">{song.title}</span>
                   <span className="block truncate text-sm text-lilac-light">{song.artist}</span>
                 </span>
-                <span className="shrink-0 font-mono text-sm text-chord-gold">{song.originalKey}</span>
+                <span className="shrink-0 font-mono text-sm text-chord-gold">
+                  {displayChord(song.originalKey, song.semitones, "en")}
+                </span>
               </Link>
             </li>
           ))}

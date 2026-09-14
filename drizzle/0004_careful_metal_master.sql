@@ -1,0 +1,1 @@
+ALTER TABLE "setlists" ADD COLUMN "transpose" jsonb DEFAULT '{}'::jsonb NOT NULL;

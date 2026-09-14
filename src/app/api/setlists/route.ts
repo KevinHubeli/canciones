@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
 import { createSetlist, listSetlists } from "@/lib/setlists";
 
+function parseTranspose(input: unknown): Record<string, number> {
+  if (!input || typeof input !== "object") return {};
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (typeof value === "number" && Number.isFinite(value)) out[key] = Math.round(value);
+  }
+  return out;
+}
+
 export async function GET() {
   if (!(await requireAdmin())) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
@@ -19,7 +28,7 @@ export async function POST(request: NextRequest) {
   if (!(await requireAdmin())) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
-  let body: { title?: unknown; songIds?: unknown };
+  let body: { title?: unknown; songIds?: unknown; transpose?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -31,9 +40,10 @@ export async function POST(request: NextRequest) {
   const songIds = Array.isArray(body.songIds)
     ? body.songIds.filter((id): id is string => typeof id === "string")
     : [];
+  const transpose = parseTranspose(body.transpose);
 
   try {
-    const setlist = await createSetlist({ title: body.title.trim(), songIds });
+    const setlist = await createSetlist({ title: body.title.trim(), songIds, transpose });
     return NextResponse.json({ setlist });
   } catch (err) {
     console.error("POST /api/setlists failed:", err);

@@ -2,31 +2,50 @@ import { NextResponse } from "next/server";
 import PptxGenJS from "pptxgenjs";
 import { getSetlist } from "@/lib/setlists";
 import { getSong } from "@/lib/songs";
-import { parseSongLine } from "@/lib/chords";
+import { parseSongLine, transposeChord } from "@/lib/chords";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Run = { text: string; options: { color: string; breakLine: boolean; bold?: boolean } };
 
+/** Corta el body en estrofas (bloques separados por líneas en blanco): una por diapositiva. */
+function splitStanzas(body: string): string[] {
+  const blocks: string[] = [];
+  let current: string[] = [];
+  for (const raw of body.split("\n")) {
+    if (raw.trim() === "") {
+      if (current.length > 0) {
+        blocks.push(current.join("\n"));
+        current = [];
+      }
+    } else {
+      current.push(raw);
+    }
+  }
+  if (current.length > 0) blocks.push(current.join("\n"));
+  return blocks.length > 0 ? blocks : [body];
+}
+
 /**
- * Convierte el body ("[Am]Cantaré") en pares de líneas chord/letra, como en
- * las presentaciones originales: el acorde va en su propia línea, ubicado
+ * Convierte una estrofa ("[Am]Cantaré") en pares de líneas chord/letra, como
+ * en las presentaciones originales: el acorde va en su propia línea, ubicado
  * (con espacios) en la columna donde se toca sobre la palabra de abajo.
  */
-function buildRuns(body: string): Run[] {
+function buildRuns(stanza: string, semitones: number): Run[] {
   const runs: Run[] = [];
-  for (const raw of body.split("\n")) {
+  for (const raw of stanza.split("\n")) {
     const { lyrics, chords } = parseSongLine(raw);
     if (chords.length > 0) {
+      const named = chords.map((c) => ({ ...c, chord: transposeChord(c.chord, semitones) }));
       let chordLine: string;
       if (!lyrics.trim()) {
         // Línea solo de acordes (ej. intro): sin letra abajo para alinear,
         // así que no hace falta conservar los espacios anchos del original.
-        chordLine = chords.map((c) => c.chord).join(" ");
+        chordLine = named.map((c) => c.chord).join(" ");
       } else {
         chordLine = "";
-        for (const c of [...chords].sort((a, b) => a.index - b.index)) {
+        for (const c of [...named].sort((a, b) => a.index - b.index)) {
           const target = Math.max(c.index, chordLine.length + (chordLine.length > 0 ? 1 : 0));
           chordLine += " ".repeat(target - chordLine.length) + c.chord;
         }
@@ -42,13 +61,14 @@ const BOX_WIDTH_IN = 12.3;
 const BOX_HEIGHT_IN = 6;
 const LINE_HEIGHT_FACTOR = 1.3; // alto de línea real (con interlineado) relativo al tamaño de fuente
 const CHAR_WIDTH_FACTOR = 0.62; // ancho aproximado de un carácter en Courier New
+const MAX_FONT_SIZE = 40;
 
-/** Baja la fuente hasta que el texto (con el ancho que ocupa cada línea) entre en la caja. */
+/** Sube (o baja) la fuente hasta la más grande que realmente entra en la caja. */
 function fitFontSize(runs: Run[]): number {
   const boxWidthPt = BOX_WIDTH_IN * 72;
   const boxHeightPt = BOX_HEIGHT_IN * 72;
 
-  for (let fontSize = 26; fontSize >= 9; fontSize--) {
+  for (let fontSize = MAX_FONT_SIZE; fontSize >= 9; fontSize--) {
     const charWidthPt = fontSize * CHAR_WIDTH_FACTOR;
     let totalLines = 0;
     for (const r of runs) {
@@ -83,37 +103,56 @@ export async function GET(
   pptx.layout = "WIDE";
 
   let slideCount = 0;
-  for (const song of songs) {
+  for (let i = 0; i < songs.length; i++) {
+    const song = songs[i];
     if (!song) continue;
-    slideCount++;
-    const runs = buildRuns(song.body);
-    // Se calcula el tamaño más grande que realmente entra en la caja
-    // (contando el ancho de cada línea, no solo la cantidad de líneas).
-    const fontSize = fitFontSize(runs);
+    const semitones = setlist.songs[i]?.semitones ?? 0;
+    const stanzas = splitStanzas(song.body);
 
-    const slide = pptx.addSlide();
-    slide.background = { color: "0A0A0B" };
-    slide.addText(song.title.toUpperCase(), {
-      x: 0.5,
-      y: 0.3,
-      w: 12.3,
-      h: 0.7,
-      fontSize: 24,
-      color: "FF5A3C",
-      bold: true,
-      fontFace: "Arial",
-    });
-    slide.addText(runs, {
-      x: 0.5,
-      y: 1.1,
-      w: BOX_WIDTH_IN,
-      h: BOX_HEIGHT_IN,
-      fontSize,
-      fontFace: "Courier New",
-      align: "left",
-      valign: "top",
-      lineSpacingMultiple: 1.05,
-    });
+    for (let s = 0; s < stanzas.length; s++) {
+      slideCount++;
+      const runs = buildRuns(stanzas[s], semitones);
+      // Se calcula el tamaño más grande que realmente entra en la caja
+      // (contando el ancho de cada línea, no solo la cantidad de líneas):
+      // una diapositiva por estrofa, así la letra queda grande de verdad.
+      const fontSize = fitFontSize(runs);
+
+      const slide = pptx.addSlide();
+      slide.background = { color: "0A0A0B" };
+      slide.addText(song.title.toUpperCase(), {
+        x: 0.5,
+        y: 0.3,
+        w: 12.3,
+        h: 0.7,
+        fontSize: 24,
+        color: "FF5A3C",
+        bold: true,
+        fontFace: "Arial",
+      });
+      if (stanzas.length > 1) {
+        slide.addText(`${s + 1}/${stanzas.length}`, {
+          x: 11.8,
+          y: 0.35,
+          w: 1,
+          h: 0.5,
+          fontSize: 14,
+          color: "8C8680",
+          align: "right",
+          fontFace: "Arial",
+        });
+      }
+      slide.addText(runs, {
+        x: 0.5,
+        y: 1.1,
+        w: BOX_WIDTH_IN,
+        h: BOX_HEIGHT_IN,
+        fontSize,
+        fontFace: "Courier New",
+        align: "left",
+        valign: "middle",
+        lineSpacingMultiple: 1.05,
+      });
+    }
   }
 
   if (slideCount === 0) {

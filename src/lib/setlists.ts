@@ -10,10 +10,12 @@ export type SetlistSummary = {
   updatedAt: string;
 };
 
+export type SetlistSong = SongSummary & { semitones: number };
+
 export type Setlist = {
   id: string;
   title: string;
-  songs: SongSummary[];
+  songs: SetlistSong[];
   updatedAt: string;
 };
 
@@ -24,6 +26,12 @@ function toSummary(row: SetlistRow): SetlistSummary {
     songCount: row.songIds.length,
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function transposeMap(row: SetlistRow): Record<string, number> {
+  const raw = row.transpose;
+  if (!raw || typeof raw !== "object") return {};
+  return raw as Record<string, number>;
 }
 
 export async function listSetlists(): Promise<SetlistSummary[]> {
@@ -40,6 +48,7 @@ export async function getSetlist(id: string): Promise<Setlist | null> {
     return { id: row.id, title: row.title, songs: [], updatedAt: row.updatedAt.toISOString() };
   }
 
+  const transpose = transposeMap(row);
   const songRows = await db.select().from(songs).where(inArray(songs.id, row.songIds));
   const byId = new Map(songRows.map((s) => [s.id, s]));
   const ordered = row.songIds
@@ -53,19 +62,27 @@ export async function getSetlist(id: string): Promise<Setlist | null> {
       category: s.category,
       tags: s.tags,
       updatedAt: s.updatedAt.toISOString(),
+      semitones: transpose[s.id] ?? 0,
     }));
 
   return { id: row.id, title: row.title, songs: ordered, updatedAt: row.updatedAt.toISOString() };
 }
 
-export async function createSetlist(input: { title: string; songIds: string[] }): Promise<SetlistSummary> {
-  const [row] = await getDb().insert(setlists).values(input).returning();
+export async function createSetlist(input: {
+  title: string;
+  songIds: string[];
+  transpose?: Record<string, number>;
+}): Promise<SetlistSummary> {
+  const [row] = await getDb()
+    .insert(setlists)
+    .values({ ...input, transpose: input.transpose ?? {} })
+    .returning();
   return toSummary(row);
 }
 
 export async function updateSetlist(
   id: string,
-  input: Partial<{ title: string; songIds: string[] }>
+  input: Partial<{ title: string; songIds: string[]; transpose: Record<string, number> }>
 ): Promise<SetlistSummary | null> {
   const [row] = await getDb()
     .update(setlists)

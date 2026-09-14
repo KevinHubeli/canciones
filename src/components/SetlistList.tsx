@@ -5,10 +5,12 @@ import Link from "next/link";
 import { Check, Pencil, Plus, Share2, Trash2 } from "lucide-react";
 import type { SetlistSummary } from "@/lib/setlists";
 import Spinner from "@/components/Spinner";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 export default function SetlistList() {
   const [setlists, setSetlists] = useState<SetlistSummary[] | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<SetlistSummary | null>(null);
 
   async function handleShare(id: string) {
     const url = `${window.location.origin}/powers/${id}`;
@@ -31,10 +33,11 @@ export default function SetlistList() {
     load();
   }, []);
 
-  async function handleDelete(id: string) {
-    if (!confirm("¿Eliminar este power?")) return;
-    const res = await fetch(`/api/setlists/${id}`, { method: "DELETE" });
-    if (res.ok) setSetlists((prev) => prev?.filter((s) => s.id !== id) ?? null);
+  async function handleDelete() {
+    if (!pendingDelete) return;
+    const res = await fetch(`/api/setlists/${pendingDelete.id}`, { method: "DELETE" });
+    if (res.ok) setSetlists((prev) => prev?.filter((s) => s.id !== pendingDelete.id) ?? null);
+    setPendingDelete(null);
   }
 
   return (
@@ -82,7 +85,7 @@ export default function SetlistList() {
                   <Pencil size={16} />
                 </Link>
                 <button
-                  onClick={() => handleDelete(s.id)}
+                  onClick={() => setPendingDelete(s)}
                   aria-label="Eliminar"
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
                 >
@@ -93,6 +96,14 @@ export default function SetlistList() {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`¿Eliminar el power "${pendingDelete?.title}"?`}
+        message="Esta acción no se puede deshacer."
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

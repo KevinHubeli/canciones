@@ -39,17 +39,24 @@ export async function PATCH(
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
   }
 
-  let body: { title?: unknown; songIds?: unknown };
+  let body: { title?: unknown; songIds?: unknown; transpose?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
 
-  const update: Partial<{ title: string; songIds: string[] }> = {};
+  const update: Partial<{ title: string; songIds: string[]; transpose: Record<string, number> }> = {};
   if (typeof body.title === "string" && body.title.trim()) update.title = body.title.trim();
   if (Array.isArray(body.songIds)) {
     update.songIds = body.songIds.filter((id): id is string => typeof id === "string");
+  }
+  if (body.transpose && typeof body.transpose === "object") {
+    const out: Record<string, number> = {};
+    for (const [key, value] of Object.entries(body.transpose as Record<string, unknown>)) {
+      if (typeof value === "number" && Number.isFinite(value)) out[key] = Math.round(value);
+    }
+    update.transpose = out;
   }
 
   try {

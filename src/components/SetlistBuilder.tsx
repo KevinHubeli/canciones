@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Plus, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Minus, Plus, Search, X } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
-import type { Setlist } from "@/lib/setlists";
+import type { Setlist, SetlistSong } from "@/lib/setlists";
 import { SONG_TAGS } from "@/lib/tags";
+import { displayChord } from "@/lib/chords";
 import Spinner from "@/components/Spinner";
 
 export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
   const router = useRouter();
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [selected, setSelected] = useState<SongSummary[]>(initial?.songs ?? []);
+  const [selected, setSelected] = useState<SetlistSong[]>(initial?.songs ?? []);
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [results, setResults] = useState<SongSummary[]>([]);
@@ -42,7 +43,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
 
   function addSong(song: SongSummary) {
     if (selectedIds.has(song.id)) return;
-    setSelected((prev) => [...prev, song]);
+    setSelected((prev) => [...prev, { ...song, semitones: 0 }]);
   }
 
   function removeSong(id: string) {
@@ -59,15 +60,30 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
     });
   }
 
+  function changeSemitones(id: string, delta: number) {
+    setSelected((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, semitones: Math.max(-11, Math.min(11, s.semitones + delta)) } : s
+      )
+    );
+  }
+
   async function handleSave() {
     if (!title.trim() || selected.length === 0) return;
     setSaving(true);
     setError(null);
     try {
+      const transpose: Record<string, number> = {};
+      for (const s of selected) transpose[s.id] = s.semitones;
+
       const res = await fetch(initial ? `/api/setlists/${initial.id}` : "/api/setlists", {
         method: initial ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), songIds: selected.map((s) => s.id) }),
+        body: JSON.stringify({
+          title: title.trim(),
+          songIds: selected.map((s) => s.id),
+          transpose,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -121,33 +137,58 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
             {selected.map((song, i) => (
               <li
                 key={song.id}
-                className="flex items-center gap-2 rounded-xl bg-night/60 px-3 py-2"
+                className="flex flex-col gap-1.5 rounded-xl bg-night/60 px-3 py-2"
               >
-                <span className="w-5 shrink-0 text-center text-xs text-lilac-light">{i + 1}</span>
-                <span className="min-w-0 flex-1 truncate text-sm text-mist">{song.title}</span>
-                <button
-                  onClick={() => move(i, -1)}
-                  disabled={i === 0}
-                  aria-label="Subir"
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light disabled:opacity-30"
-                >
-                  <ArrowUp size={14} />
-                </button>
-                <button
-                  onClick={() => move(i, 1)}
-                  disabled={i === selected.length - 1}
-                  aria-label="Bajar"
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light disabled:opacity-30"
-                >
-                  <ArrowDown size={14} />
-                </button>
-                <button
-                  onClick={() => removeSong(song.id)}
-                  aria-label="Quitar"
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light"
-                >
-                  <X size={14} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="w-5 shrink-0 text-center text-xs text-lilac-light">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-mist">{song.title}</span>
+                  <button
+                    onClick={() => move(i, -1)}
+                    disabled={i === 0}
+                    aria-label="Subir"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light disabled:opacity-30"
+                  >
+                    <ArrowUp size={14} />
+                  </button>
+                  <button
+                    onClick={() => move(i, 1)}
+                    disabled={i === selected.length - 1}
+                    aria-label="Bajar"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light disabled:opacity-30"
+                  >
+                    <ArrowDown size={14} />
+                  </button>
+                  <button
+                    onClick={() => removeSong(song.id)}
+                    aria-label="Quitar"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="ml-7 flex items-center gap-2 text-xs text-lilac-light">
+                  <span>Tono:</span>
+                  <button
+                    onClick={() => changeSemitones(song.id, -1)}
+                    aria-label="Bajar semitono"
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-plum/60"
+                  >
+                    <Minus size={12} />
+                  </button>
+                  <span className="w-14 text-center font-mono text-chord-gold">
+                    {displayChord(song.originalKey, song.semitones, "en")}
+                  </span>
+                  <button
+                    onClick={() => changeSemitones(song.id, 1)}
+                    aria-label="Subir semitono"
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-plum/60"
+                  >
+                    <Plus size={12} />
+                  </button>
+                  {song.semitones !== 0 && (
+                    <span className="text-lilac-light/70">(original: {song.originalKey})</span>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

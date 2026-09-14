@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Download, ListMusic, Music, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ListMusic, Music, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
 import Spinner from "@/components/Spinner";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 export default function AdminSongList() {
   const [songs, setSongs] = useState<SongSummary[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<SongSummary | null>(null);
 
   async function load(q: string) {
     setLoading(true);
@@ -34,10 +36,11 @@ export default function AdminSongList() {
     return () => clearTimeout(id);
   }, [query]);
 
-  async function handleDelete(id: string) {
-    if (!confirm("¿Eliminar esta canción?")) return;
-    const res = await fetch(`/api/songs/${id}`, { method: "DELETE" });
-    if (res.ok) setSongs((prev) => prev.filter((s) => s.id !== id));
+  async function handleDelete() {
+    if (!pendingDelete) return;
+    const res = await fetch(`/api/songs/${pendingDelete.id}`, { method: "DELETE" });
+    if (res.ok) setSongs((prev) => prev.filter((s) => s.id !== pendingDelete.id));
+    setPendingDelete(null);
   }
 
   return (
@@ -76,13 +79,6 @@ export default function AdminSongList() {
           <Music size={16} />
           Buscar acordes
         </Link>
-        <Link
-          href="/admin/importar-holyrics"
-          className="flex items-center gap-1.5 rounded-full bg-plum/60 px-3.5 py-2 text-sm text-mist"
-        >
-          <Download size={16} />
-          Importar Holyrics
-        </Link>
       </div>
 
       {error && <p className="py-6 text-center text-sm text-lilac-light">{error}</p>}
@@ -112,7 +108,7 @@ export default function AdminSongList() {
                   <Pencil size={16} />
                 </Link>
                 <button
-                  onClick={() => handleDelete(song.id)}
+                  onClick={() => setPendingDelete(song)}
                   aria-label="Eliminar"
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
                 >
@@ -123,6 +119,14 @@ export default function AdminSongList() {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`¿Eliminar "${pendingDelete?.title}"?`}
+        message="Esta acción no se puede deshacer."
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

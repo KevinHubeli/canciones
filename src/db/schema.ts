@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const songs = pgTable(
@@ -34,6 +34,10 @@ export const setlists = pgTable("setlists", {
     .array()
     .notNull()
     .default(sql`ARRAY[]::uuid[]`),
+  // Semitonos de transposición por canción para este power puntual (no
+  // toca el tono original de la canción, solo cómo se ve/exporta acá).
+  // Formato: { [songId]: semitones }
+  transpose: jsonb("transpose").notNull().default(sql`'{}'::jsonb`),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
