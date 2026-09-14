@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { Download, Play } from "lucide-react";
 import { getSetlist } from "@/lib/setlists";
 import { displayChord } from "@/lib/chords";
 
@@ -14,6 +14,7 @@ export default async function PublicPowerPage({
   if (!setlist) notFound();
 
   const setParam = setlist.songs.map((s) => s.id).join(",");
+  const tParam = setlist.songs.map((s) => s.semitones).join(",");
 
   return (
     <main className="flex flex-1 flex-col pt-12">
@@ -36,11 +37,21 @@ export default async function PublicPowerPage({
       {setlist.songs.length === 0 ? (
         <p className="px-5 text-sm text-lilac-light">Este power no tiene canciones todavía.</p>
       ) : (
-        <ul className="flex flex-col gap-2 px-5 pb-10">
+        <>
+          <div className="px-5 pb-4">
+            <Link
+              href={`/canciones/${setlist.songs[0].id}?set=${setParam}&i=0&t=${tParam}`}
+              className="flex items-center justify-center gap-2 rounded-full bg-accent py-3 text-sm font-semibold text-night"
+            >
+              <Play size={16} />
+              Presentar desde el principio
+            </Link>
+          </div>
+          <ul className="flex flex-col gap-2 px-5 pb-10">
           {setlist.songs.map((song, i) => (
             <li key={song.id}>
               <Link
-                href={`/canciones/${song.id}?set=${setParam}&i=${i}`}
+                href={`/canciones/${song.id}?set=${setParam}&i=${i}&t=${tParam}`}
                 className="flex items-center gap-3 rounded-2xl border border-plum/60 bg-night/40 px-4 py-3 active:bg-night/70"
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-plum/60 text-xs text-lilac-light">
@@ -56,7 +67,8 @@ export default async function PublicPowerPage({
               </Link>
             </li>
           ))}
-        </ul>
+          </ul>
+        </>
       )}
     </main>
   );

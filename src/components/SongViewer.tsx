@@ -17,14 +17,18 @@ const PREFERRED_PX = [14, 16, 19];
 export default function SongViewer({
   song,
   setIds,
+  setSemitones: powerSemitones,
   index,
+  initialSemitones,
 }: {
   song: Song;
   setIds?: string[];
+  setSemitones?: number[];
   index?: number;
+  initialSemitones?: number;
 }) {
   const router = useRouter();
-  const [semitones, setSemitones] = useState(0);
+  const [semitones, setSemitones] = useState(initialSemitones ?? 0);
   const [notation, setNotation] = useState<ChordNotation>("en");
   const [textSizeIndex, setTextSizeIndex] = useState(() => {
     if (typeof window === "undefined") return 1;
@@ -153,6 +157,44 @@ export default function SongViewer({
     };
   }, []);
 
+  // Deslizar para pasar de canción dentro de un power (solo en vertical: en
+  // modo columnas el deslizar horizontal ya se usa para recorrer el texto).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || isWide || !setIds || index === undefined) return;
+
+    const ids = setIds;
+    const currentIndex = index;
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    function onStart(e: TouchEvent) {
+      const t = e.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      tracking = true;
+    }
+    function onEnd(e: TouchEvent) {
+      if (!tracking) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      const SWIPE_THRESHOLD = 60;
+      if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      if (dx < 0) goTo(router, ids, powerSemitones, currentIndex + 1);
+      else goTo(router, ids, powerSemitones, currentIndex - 1);
+    }
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchend", onEnd);
+    };
+  }, [isWide, setIds, powerSemitones, index, router]);
+
   return (
     <div className="flex h-[100dvh] flex-col">
       <div className="px-5 pb-2 pt-6 animate-fade-in">
@@ -230,7 +272,7 @@ export default function SongViewer({
       {setIds && setIds.length > 0 && index !== undefined && (
         <div className="fixed bottom-24 left-4 z-40 flex items-center gap-2">
           <button
-            onClick={() => goTo(router, setIds, index - 1)}
+            onClick={() => goTo(router, setIds, powerSemitones, index - 1)}
             disabled={index <= 0}
             aria-label="Canción anterior del power"
             className="flex h-12 w-12 items-center justify-center rounded-full bg-night/90 text-mist shadow-lg disabled:opacity-30"
@@ -241,7 +283,7 @@ export default function SongViewer({
             {index + 1}/{setIds.length}
           </span>
           <button
-            onClick={() => goTo(router, setIds, index + 1)}
+            onClick={() => goTo(router, setIds, powerSemitones, index + 1)}
             disabled={index >= setIds.length - 1}
             aria-label="Canción siguiente del power"
             className="flex h-12 w-12 items-center justify-center rounded-full bg-night/90 text-mist shadow-lg disabled:opacity-30"
@@ -254,8 +296,14 @@ export default function SongViewer({
   );
 }
 
-function goTo(router: ReturnType<typeof useRouter>, setIds: string[], newIndex: number) {
+function goTo(
+  router: ReturnType<typeof useRouter>,
+  setIds: string[],
+  setSemitones: number[] | undefined,
+  newIndex: number
+) {
   if (newIndex < 0 || newIndex >= setIds.length) return;
   const params = new URLSearchParams({ set: setIds.join(","), i: String(newIndex) });
+  if (setSemitones) params.set("t", setSemitones.join(","));
   router.push(`/canciones/${setIds[newIndex]}?${params}`);
 }

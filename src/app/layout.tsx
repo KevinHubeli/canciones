@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Manrope, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import SpaBackground from "@/components/SpaBackground";
@@ -71,7 +72,9 @@ export default function RootLayout({
         <div className="relative z-10 flex min-h-full flex-1 flex-col pb-24">
           {children}
         </div>
-        <BottomNav />
+        <Suspense fallback={null}>
+          <BottomNav />
+        </Suspense>
       </body>
     </html>
   );

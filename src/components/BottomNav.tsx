@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Home, Search, UserRound } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -13,6 +13,11 @@ const ITEMS = [
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Viendo una canción dentro de un power: se oculta la barra para que se
+  // sienta como una presentación, con toda la pantalla para la letra.
+  if (searchParams.get("set")) return null;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(1rem,env(safe-area-inset-bottom))]">
