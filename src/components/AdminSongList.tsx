@@ -53,32 +53,35 @@ export default function AdminSongList() {
           />
         </div>
         <Link
-          href="/admin/importar-holyrics"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-mist"
-          aria-label="Importar desde Holyrics"
-        >
-          <Download size={18} />
-        </Link>
-        <Link
-          href="/admin/auto-acordes"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-mist"
-          aria-label="Buscar acordes automáticamente"
-        >
-          <Music size={18} />
-        </Link>
-        <Link
-          href="/admin/powers"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-mist"
-          aria-label="Powers"
-        >
-          <ListMusic size={18} />
-        </Link>
-        <Link
           href="/admin/nueva"
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-night"
           aria-label="Nueva canción"
         >
           <Plus size={20} />
+        </Link>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Link
+          href="/admin/powers"
+          className="flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm text-mist"
+        >
+          <ListMusic size={16} />
+          Powers
+        </Link>
+        <Link
+          href="/admin/auto-acordes"
+          className="flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm text-mist"
+        >
+          <Music size={16} />
+          Buscar acordes
+        </Link>
+        <Link
+          href="/admin/importar-holyrics"
+          className="flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-2 text-sm text-mist"
+        >
+          <Download size={16} />
+          Importar Holyrics
         </Link>
       </div>
 
