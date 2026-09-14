@@ -171,7 +171,7 @@ export default function SongList() {
                       {song.tags.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-full bg-plum/60 px-2 py-0.5 text-[10px] text-lilac-light"
+                          className="rounded-full border border-plum px-2 py-0.5 text-[10px] text-lilac-light"
                         >
                           {tag}
                         </span>

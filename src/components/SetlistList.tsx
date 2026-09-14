@@ -96,21 +96,21 @@ export default function SetlistList() {
                 <button
                   onClick={() => handleShare(s.id)}
                   aria-label="Copiar link para compartir"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum text-mist"
                 >
                   {copiedId === s.id ? <Check size={16} /> : <Share2 size={16} />}
                 </button>
                 <Link
                   href={`/admin/powers/${s.id}/editar`}
                   aria-label="Editar"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum text-mist"
                 >
                   <Pencil size={16} />
                 </Link>
                 <button
                   onClick={() => setPendingDelete(s)}
                   aria-label="Eliminar"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum/60 text-mist"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum text-mist"
                 >
                   <Trash2 size={16} />
                 </button>

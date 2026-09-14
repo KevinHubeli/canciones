@@ -27,7 +27,7 @@ export default async function PublicPowerPage({
           <a
             href={`/api/setlists/${setlist.id}/export-pptx`}
             aria-label="Exportar a PowerPoint"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-plum/60 text-mist"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-plum text-mist"
           >
             <Download size={18} />
           </a>

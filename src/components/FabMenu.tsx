@@ -188,7 +188,7 @@ function RoundButton({
     <button
       onClick={onClick}
       aria-label={label}
-      className="flex h-10 w-10 items-center justify-center rounded-full bg-plum/60 text-mist active:scale-95"
+      className="flex h-10 w-10 items-center justify-center rounded-full bg-plum text-mist active:scale-95"
     >
       {children}
     </button>

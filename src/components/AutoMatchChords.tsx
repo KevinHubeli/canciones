@@ -74,7 +74,7 @@ export default function AutoMatchChords() {
           onClick={() => {
             stopRef.current = true;
           }}
-          className="rounded-full bg-plum/60 py-3 text-sm font-semibold text-mist"
+          className="rounded-full bg-plum py-3 text-sm font-semibold text-mist"
         >
           Detener
         </button>

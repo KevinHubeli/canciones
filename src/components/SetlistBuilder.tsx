@@ -154,7 +154,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                     onClick={() => move(i, -1)}
                     disabled={i === 0}
                     aria-label="Subir"
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light disabled:opacity-30"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-plum text-lilac-light disabled:opacity-30"
                   >
                     <ArrowUp size={14} />
                   </button>
@@ -162,14 +162,14 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                     onClick={() => move(i, 1)}
                     disabled={i === selected.length - 1}
                     aria-label="Bajar"
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light disabled:opacity-30"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-plum text-lilac-light disabled:opacity-30"
                   >
                     <ArrowDown size={14} />
                   </button>
                   <button
                     onClick={() => removeSong(song.id)}
                     aria-label="Quitar"
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-plum/60 text-lilac-light"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-plum text-lilac-light"
                   >
                     <X size={14} />
                   </button>
@@ -179,7 +179,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                   <button
                     onClick={() => changeSemitones(song.id, -1)}
                     aria-label="Bajar semitono"
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-plum/60"
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-plum"
                   >
                     <Minus size={12} />
                   </button>
@@ -189,7 +189,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                   <button
                     onClick={() => changeSemitones(song.id, 1)}
                     aria-label="Subir semitono"
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-plum/60"
+                    className="flex h-6 w-6 items-center justify-center rounded-full bg-plum"
                   >
                     <Plus size={12} />
                   </button>
@@ -226,7 +226,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                     onClick={() => addSong(song)}
                     disabled={added}
                     aria-label="Agregar al power"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-plum/60 text-mist disabled:opacity-30"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-plum text-mist disabled:opacity-30"
                   >
                     <Plus size={16} />
                   </button>
@@ -283,7 +283,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                   onClick={() => addSong(song)}
                   disabled={added}
                   aria-label="Agregar al power"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-plum/60 text-mist disabled:opacity-30"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-plum text-mist disabled:opacity-30"
                 >
                   <Plus size={16} />
                 </button>

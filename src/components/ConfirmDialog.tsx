@@ -35,7 +35,7 @@ export default function ConfirmDialog({
         <div className="mt-5 flex gap-2">
           <button
             onClick={onCancel}
-            className="flex-1 rounded-full bg-plum/60 py-2.5 text-sm font-medium text-mist"
+            className="flex-1 rounded-full bg-plum py-2.5 text-sm font-medium text-mist"
           >
             {cancelLabel}
           </button>
