@@ -97,7 +97,11 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
       <button
         onClick={handleSave}
         disabled={saving || !title.trim() || selected.length === 0}
-        className="rounded-full bg-accent py-3 text-sm font-semibold text-night disabled:opacity-60"
+        className={`rounded-full py-3 text-sm font-semibold ${
+          saving || !title.trim() || selected.length === 0
+            ? "bg-white/10 text-lilac-light"
+            : "bg-accent text-night"
+        }`}
       >
         {saving
           ? "Guardando..."
