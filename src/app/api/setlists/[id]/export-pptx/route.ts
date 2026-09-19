@@ -87,28 +87,94 @@ function fitFontSize(runs: Run[], floor = 9): number {
   return floor;
 }
 
+const TINY_STANZA_MAX_LINES = 2; // ej. un "Amén" o "Selah" sueltos
+const TINY_MERGE_FLOOR = 14; // para esas, se tolera bajar más la fuente con tal de no dejarlas solas
+
 /**
- * Divide una estrofa en bloques más chicos cuando no entraría con una letra
- * legible (>= MIN_STANDARD_FONT), agregando línea por línea hasta que el
- * bloque ya no entre, y ahí corta para la siguiente diapositiva.
+ * Divide una estrofa en bloques más chicos cuando no entra sola con una
+ * letra legible (>= MIN_STANDARD_FONT), agregando línea por línea hasta que
+ * el bloque ya no entre, y ahí corta para la siguiente diapositiva. Si el
+ * último bloque queda muy chico (ej. un "Amén" suelto al final), se lo
+ * intenta pegar de vuelta al bloque anterior aunque haga falta bajar un
+ * poco más la fuente, para no dejarlo solo en su propia hoja.
  */
 function splitToFit(stanza: string, semitones: number): Run[][] {
   const lines = stanza.split("\n");
-  const blocks: Run[][] = [];
+  const blocks: string[][] = [];
   let current: string[] = [];
 
   for (const line of lines) {
     const candidate = [...current, line];
     const runs = buildRuns(candidate.join("\n"), semitones);
     if (current.length > 0 && !fitsAtSize(runs, MIN_STANDARD_FONT)) {
-      blocks.push(buildRuns(current.join("\n"), semitones));
+      blocks.push(current);
       current = [line];
     } else {
       current = candidate;
     }
   }
-  if (current.length > 0) blocks.push(buildRuns(current.join("\n"), semitones));
-  return blocks.length > 0 ? blocks : [buildRuns(stanza, semitones)];
+  if (current.length > 0) blocks.push(current);
+
+  while (blocks.length >= 2 && blocks[blocks.length - 1].length <= TINY_STANZA_MAX_LINES) {
+    const last = blocks[blocks.length - 1];
+    const prev = blocks[blocks.length - 2];
+    const merged = [...prev, ...last];
+    const mergedRuns = buildRuns(merged.join("\n"), semitones);
+    if (!fitsAtSize(mergedRuns, TINY_MERGE_FLOOR)) break;
+    blocks.splice(blocks.length - 2, 2, merged);
+  }
+
+  return blocks.length > 0
+    ? blocks.map((b) => buildRuns(b.join("\n"), semitones))
+    : [buildRuns(stanza, semitones)];
+}
+
+/**
+ * Agrupa las estrofas de una canción en diapositivas: mete todas las que
+ * entren juntas (letra legible, >= MIN_STANDARD_FONT) en una misma hoja, en
+ * vez de una estrofa por diapositiva. Así no quedan hojas casi vacías con
+ * una sola línea suelta (ej. un "Amén" al final): una estrofa muy corta se
+ * fuerza a compartir hoja con la anterior aunque haga falta bajar un poco
+ * más la fuente. Solo cuando una estrofa no entra ni sola, se la parte
+ * internamente.
+ */
+function packStanzas(stanzas: string[], semitones: number): Run[][] {
+  const blocks: Run[][] = [];
+  let current: string[] = [];
+
+  const flush = () => {
+    if (current.length > 0) {
+      blocks.push(buildRuns(current.join("\n\n"), semitones));
+      current = [];
+    }
+  };
+
+  for (const stanza of stanzas) {
+    const candidate = [...current, stanza];
+    const candidateRuns = buildRuns(candidate.join("\n\n"), semitones);
+    const isTiny = stanza.split("\n").length <= TINY_STANZA_MAX_LINES;
+    const fits =
+      fitsAtSize(candidateRuns, MIN_STANDARD_FONT) ||
+      (isTiny && fitsAtSize(candidateRuns, TINY_MERGE_FLOOR));
+
+    if (current.length > 0 && !fits) {
+      flush();
+      current = [stanza];
+    } else {
+      current = candidate;
+    }
+
+    if (current.length === 1) {
+      const soloRuns = buildRuns(current[0], semitones);
+      if (!fitsAtSize(soloRuns, MIN_STANDARD_FONT)) {
+        // Ni siquiera sola entra legible: se parte internamente en varias hojas.
+        blocks.push(...splitToFit(current[0], semitones));
+        current = [];
+      }
+    }
+  }
+  flush();
+  return blocks.length > 0 ? blocks : [buildRuns(stanzas.join("\n\n"), semitones)];
 }
 
 export async function GET(
@@ -136,11 +202,7 @@ export async function GET(
     if (!song) continue;
     const semitones = setlist.songs[i]?.semitones ?? 0;
     const stanzas = splitStanzas(song.body);
-
-    const songBlocks: Run[][] = [];
-    for (const stanza of stanzas) {
-      songBlocks.push(...splitToFit(stanza, semitones));
-    }
+    const songBlocks = packStanzas(stanzas, semitones);
     songBlocks.forEach((runs, idx) => {
       slidesData.push({ title: song.title, runs, index: idx, count: songBlocks.length });
     });
