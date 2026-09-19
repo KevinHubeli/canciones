@@ -62,23 +62,53 @@ const BOX_HEIGHT_IN = 6;
 const LINE_HEIGHT_FACTOR = 1.3; // alto de línea real (con interlineado) relativo al tamaño de fuente
 const CHAR_WIDTH_FACTOR = 0.62; // ancho aproximado de un carácter en Courier New
 const MAX_FONT_SIZE = 40;
+const MIN_STANDARD_FONT = 20; // por debajo de esto, mejor partir la estrofa en más diapositivas
 
-/** Sube (o baja) la fuente hasta la más grande que realmente entra en la caja. */
-function fitFontSize(runs: Run[]): number {
+function neededHeightPt(runs: Run[], fontSize: number): number {
   const boxWidthPt = BOX_WIDTH_IN * 72;
-  const boxHeightPt = BOX_HEIGHT_IN * 72;
-
-  for (let fontSize = MAX_FONT_SIZE; fontSize >= 9; fontSize--) {
-    const charWidthPt = fontSize * CHAR_WIDTH_FACTOR;
-    let totalLines = 0;
-    for (const r of runs) {
-      const lineWidthPt = r.text.length * charWidthPt;
-      totalLines += Math.max(1, Math.ceil(lineWidthPt / boxWidthPt));
-    }
-    const neededHeightPt = totalLines * fontSize * LINE_HEIGHT_FACTOR;
-    if (neededHeightPt <= boxHeightPt) return fontSize;
+  const charWidthPt = fontSize * CHAR_WIDTH_FACTOR;
+  let totalLines = 0;
+  for (const r of runs) {
+    const lineWidthPt = r.text.length * charWidthPt;
+    totalLines += Math.max(1, Math.ceil(lineWidthPt / boxWidthPt));
   }
-  return 9;
+  return totalLines * fontSize * LINE_HEIGHT_FACTOR;
+}
+
+function fitsAtSize(runs: Run[], fontSize: number): boolean {
+  return neededHeightPt(runs, fontSize) <= BOX_HEIGHT_IN * 72;
+}
+
+/** Tamaño de fuente más grande (entre floor y MAX_FONT_SIZE) que entra en la caja. */
+function fitFontSize(runs: Run[], floor = 9): number {
+  for (let fontSize = MAX_FONT_SIZE; fontSize >= floor; fontSize--) {
+    if (fitsAtSize(runs, fontSize)) return fontSize;
+  }
+  return floor;
+}
+
+/**
+ * Divide una estrofa en bloques más chicos cuando no entraría con una letra
+ * legible (>= MIN_STANDARD_FONT), agregando línea por línea hasta que el
+ * bloque ya no entre, y ahí corta para la siguiente diapositiva.
+ */
+function splitToFit(stanza: string, semitones: number): Run[][] {
+  const lines = stanza.split("\n");
+  const blocks: Run[][] = [];
+  let current: string[] = [];
+
+  for (const line of lines) {
+    const candidate = [...current, line];
+    const runs = buildRuns(candidate.join("\n"), semitones);
+    if (current.length > 0 && !fitsAtSize(runs, MIN_STANDARD_FONT)) {
+      blocks.push(buildRuns(current.join("\n"), semitones));
+      current = [line];
+    } else {
+      current = candidate;
+    }
+  }
+  if (current.length > 0) blocks.push(buildRuns(current.join("\n"), semitones));
+  return blocks.length > 0 ? blocks : [buildRuns(stanza, semitones)];
 }
 
 export async function GET(
@@ -98,65 +128,72 @@ export async function GET(
 
   const songs = await Promise.all(setlist.songs.map((s) => getSong(s.id)));
 
-  const pptx = new PptxGenJS();
-  pptx.defineLayout({ name: "WIDE", width: 13.333, height: 7.5 });
-  pptx.layout = "WIDE";
+  type SlideData = { title: string; runs: Run[]; index: number; count: number };
+  const slidesData: SlideData[] = [];
 
-  let slideCount = 0;
   for (let i = 0; i < songs.length; i++) {
     const song = songs[i];
     if (!song) continue;
     const semitones = setlist.songs[i]?.semitones ?? 0;
     const stanzas = splitStanzas(song.body);
 
-    for (let s = 0; s < stanzas.length; s++) {
-      slideCount++;
-      const runs = buildRuns(stanzas[s], semitones);
-      // Se calcula el tamaño más grande que realmente entra en la caja
-      // (contando el ancho de cada línea, no solo la cantidad de líneas):
-      // una diapositiva por estrofa, así la letra queda grande de verdad.
-      const fontSize = fitFontSize(runs);
-
-      const slide = pptx.addSlide();
-      slide.background = { color: "0A0A0B" };
-      slide.addText(song.title.toUpperCase(), {
-        x: 0.5,
-        y: 0.3,
-        w: 12.3,
-        h: 0.7,
-        fontSize: 24,
-        color: "FF5A3C",
-        bold: true,
-        fontFace: "Arial",
-      });
-      if (stanzas.length > 1) {
-        slide.addText(`${s + 1}/${stanzas.length}`, {
-          x: 11.8,
-          y: 0.35,
-          w: 1,
-          h: 0.5,
-          fontSize: 14,
-          color: "8C8680",
-          align: "right",
-          fontFace: "Arial",
-        });
-      }
-      slide.addText(runs, {
-        x: 0.5,
-        y: 1.1,
-        w: BOX_WIDTH_IN,
-        h: BOX_HEIGHT_IN,
-        fontSize,
-        fontFace: "Courier New",
-        align: "left",
-        valign: "middle",
-        lineSpacingMultiple: 1.05,
-      });
+    const songBlocks: Run[][] = [];
+    for (const stanza of stanzas) {
+      songBlocks.push(...splitToFit(stanza, semitones));
     }
+    songBlocks.forEach((runs, idx) => {
+      slidesData.push({ title: song.title, runs, index: idx, count: songBlocks.length });
+    });
   }
 
-  if (slideCount === 0) {
+  if (slidesData.length === 0) {
     return NextResponse.json({ error: "El power no tiene canciones." }, { status: 400 });
+  }
+
+  // Un solo tamaño de fuente para todo el power: así todas las diapositivas
+  // se ven iguales en vez de saltar de una fuente grande a una chiquita.
+  const fontSize = Math.min(...slidesData.map((d) => fitFontSize(d.runs)));
+
+  const pptx = new PptxGenJS();
+  pptx.defineLayout({ name: "WIDE", width: 13.333, height: 7.5 });
+  pptx.layout = "WIDE";
+
+  for (const d of slidesData) {
+    const slide = pptx.addSlide();
+    slide.background = { color: "0A0A0B" };
+    slide.addText(d.title.toUpperCase(), {
+      x: 0.5,
+      y: 0.3,
+      w: 12.3,
+      h: 0.7,
+      fontSize: 24,
+      color: "FF5A3C",
+      bold: true,
+      fontFace: "Arial",
+    });
+    if (d.count > 1) {
+      slide.addText(`${d.index + 1}/${d.count}`, {
+        x: 11.8,
+        y: 0.35,
+        w: 1,
+        h: 0.5,
+        fontSize: 14,
+        color: "8C8680",
+        align: "right",
+        fontFace: "Arial",
+      });
+    }
+    slide.addText(d.runs, {
+      x: 0.5,
+      y: 1.1,
+      w: BOX_WIDTH_IN,
+      h: BOX_HEIGHT_IN,
+      fontSize,
+      fontFace: "Courier New",
+      align: "left",
+      valign: "middle",
+      lineSpacingMultiple: 1.05,
+    });
   }
 
   const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
