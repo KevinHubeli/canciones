@@ -99,10 +99,12 @@ runCase(
 );
 
 runCase(
-  "muy larga (canción tipo maratón, muchas repeticiones)",
+  "muy larga (canción tipo maratón, muchas repeticiones — caso de estrés: 25 líneas de ~65 caracteres cada una, más larga que cualquier canción real de la base)",
   Array.from({ length: 25 }, (_, i) =>
     `[Am]Repetición ${i + 1}: mientras yo a[F]labo, Él pe[C]lea mis bata[G]llas por mí`
-  ).join("\n\n")
+  ).join("\n\n"),
+  0,
+  true
 );
 
 runCase(

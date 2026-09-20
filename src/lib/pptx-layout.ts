@@ -1,4 +1,4 @@
-import { parseSongLine, transposeChord } from "@/lib/chords";
+import { parseSongLine, transposeChord, type ParsedChord } from "@/lib/chords";
 
 export type Run = { text: string; options: { color: string; breakLine: boolean; bold?: boolean } };
 
@@ -34,33 +34,98 @@ export const LINE_HEIGHT_PT = FONT_SIZE * LINE_HEIGHT_FACTOR;
 export const CHAR_WIDTH_PT = FONT_SIZE * CHAR_WIDTH_FACTOR;
 export const LINES_PER_COLUMN = linesPerColumnAt(FONT_SIZE);
 
+// Las líneas de letra más largas que esto se cortan al medio (en el espacio
+// más cercano a la mitad, para no partir una palabra) antes de armar el par
+// acorde/letra. Sin este corte, una línea muy larga termina envolviéndose
+// sola dentro de la columna y el acorde de arriba (que es un párrafo aparte)
+// se desalinea de la palabra que le corresponde.
+const MAX_LINE_CHARS = 48;
+
+/** Inversa de parseSongLine: vuelve a poner los "[Acorde]" en su lugar. */
+function reconstructRawLine(lyrics: string, chords: ParsedChord[]): string {
+  let raw = "";
+  let cursor = 0;
+  for (const c of [...chords].sort((a, b) => a.index - b.index)) {
+    raw += lyrics.slice(cursor, c.index) + `[${c.chord}]`;
+    cursor = c.index;
+  }
+  raw += lyrics.slice(cursor);
+  return raw;
+}
+
+/**
+ * Si la letra de una línea supera MAX_LINE_CHARS, la corta en dos en el
+ * espacio más cercano a la mitad (sin partir palabras), repartiendo los
+ * acordes según a qué mitad les toca y reindexándolos. Se aplica de forma
+ * recursiva por si alguna mitad sigue siendo demasiado larga.
+ */
+function splitLongRawLine(raw: string, maxChars = MAX_LINE_CHARS): string[] {
+  const { lyrics, chords } = parseSongLine(raw);
+  if (lyrics.length <= maxChars) return [raw];
+
+  const mid = Math.floor(lyrics.length / 2);
+  let splitAt = -1;
+  for (let offset = 0; offset < lyrics.length; offset++) {
+    const left = mid - offset;
+    const right = mid + offset;
+    if (left > 0 && lyrics[left] === " ") {
+      splitAt = left;
+      break;
+    }
+    if (right < lyrics.length && lyrics[right] === " ") {
+      splitAt = right;
+      break;
+    }
+  }
+  if (splitAt === -1) splitAt = mid; // no hay ningún espacio: corte a la fuerza (caso raro)
+
+  const firstLyricsRaw = lyrics.slice(0, splitAt);
+  const secondLyricsRaw = lyrics.slice(splitAt);
+  const firstLyrics = firstLyricsRaw.trimEnd();
+  const secondLyrics = secondLyricsRaw.trimStart();
+  const trimmedLeadingSpaces = secondLyricsRaw.length - secondLyrics.length;
+
+  const firstChords = chords.filter((c) => c.index <= splitAt);
+  const secondChords = chords
+    .filter((c) => c.index > splitAt)
+    .map((c) => ({ ...c, index: Math.max(0, c.index - splitAt - trimmedLeadingSpaces) }));
+
+  const firstRaw = reconstructRawLine(firstLyrics, firstChords);
+  const secondRaw = reconstructRawLine(secondLyrics, secondChords);
+
+  return [...splitLongRawLine(firstRaw, maxChars), ...splitLongRawLine(secondRaw, maxChars)];
+}
+
 /**
  * Convierte el texto de una canción ("[Am]Cantaré") en pares de líneas
  * chord/letra: el acorde va en su propia línea, ubicado (con espacios) en
  * la columna donde se toca sobre la palabra de abajo. Las líneas en blanco
- * del original se conservan como separador visual entre estrofas.
+ * del original se conservan como separador visual entre estrofas. Las
+ * líneas de letra muy largas se cortan al medio (ver splitLongRawLine).
  */
 export function buildRuns(body: string, semitones: number): Run[] {
   const runs: Run[] = [];
-  for (const raw of body.split("\n")) {
-    const { lyrics, chords } = parseSongLine(raw);
-    if (chords.length > 0) {
-      const named = chords.map((c) => ({ ...c, chord: transposeChord(c.chord, semitones) }));
-      let chordLine: string;
-      if (!lyrics.trim()) {
-        // Línea solo de acordes (ej. intro): sin letra abajo para alinear,
-        // así que no hace falta conservar los espacios anchos del original.
-        chordLine = named.map((c) => c.chord).join(" ");
-      } else {
-        chordLine = "";
-        for (const c of [...named].sort((a, b) => a.index - b.index)) {
-          const target = Math.max(c.index, chordLine.length + (chordLine.length > 0 ? 1 : 0));
-          chordLine += " ".repeat(target - chordLine.length) + c.chord;
+  for (const originalRaw of body.split("\n")) {
+    for (const raw of splitLongRawLine(originalRaw)) {
+      const { lyrics, chords } = parseSongLine(raw);
+      if (chords.length > 0) {
+        const named = chords.map((c) => ({ ...c, chord: transposeChord(c.chord, semitones) }));
+        let chordLine: string;
+        if (!lyrics.trim()) {
+          // Línea solo de acordes (ej. intro): sin letra abajo para alinear,
+          // así que no hace falta conservar los espacios anchos del original.
+          chordLine = named.map((c) => c.chord).join(" ");
+        } else {
+          chordLine = "";
+          for (const c of [...named].sort((a, b) => a.index - b.index)) {
+            const target = Math.max(c.index, chordLine.length + (chordLine.length > 0 ? 1 : 0));
+            chordLine += " ".repeat(target - chordLine.length) + c.chord;
+          }
         }
+        runs.push({ text: chordLine, options: { color: CHORD_COLOR, breakLine: true, bold: true } });
       }
-      runs.push({ text: chordLine, options: { color: CHORD_COLOR, breakLine: true, bold: true } });
+      runs.push({ text: lyrics || " ", options: { color: LYRIC_COLOR, breakLine: true } });
     }
-    runs.push({ text: lyrics || " ", options: { color: LYRIC_COLOR, breakLine: true } });
   }
   return runs;
 }
