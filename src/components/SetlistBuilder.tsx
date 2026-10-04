@@ -7,12 +7,23 @@ import type { SongSummary } from "@/lib/types";
 import type { RecentlyUsedSong, Setlist, SetlistSong } from "@/lib/setlists";
 import { SONG_TAGS } from "@/lib/tags";
 import { displayChord } from "@/lib/chords";
+import {
+  DIVIDER_NAMES,
+  mergeEntries,
+  splitEntries,
+  type DividerName,
+  type SetlistEntry,
+} from "@/lib/dividers";
 import Spinner from "@/components/Spinner";
 
 export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
   const router = useRouter();
   const [title, setTitle] = useState(initial?.title ?? "");
-  const [selected, setSelected] = useState<SetlistSong[]>(initial?.songs ?? []);
+  // Lista única y ordenada: canciones y divisores (ALABANZA, OFRENDA...) mezclados.
+  const [entries, setEntries] = useState<SetlistEntry<SetlistSong>[]>(() =>
+    mergeEntries(initial?.songs ?? [], initial?.dividers ?? [])
+  );
+  const selected = entries.flatMap((e) => (e.kind === "song" ? [e.song] : []));
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [results, setResults] = useState<SongSummary[]>([]);
@@ -51,15 +62,19 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
 
   function addSong(song: SongSummary) {
     if (selectedIds.has(song.id)) return;
-    setSelected((prev) => [...prev, { ...song, semitones: 0 }]);
+    setEntries((prev) => [...prev, { kind: "song", song: { ...song, semitones: 0 } }]);
   }
 
-  function removeSong(id: string) {
-    setSelected((prev) => prev.filter((s) => s.id !== id));
+  function addDivider(name: DividerName) {
+    setEntries((prev) => [...prev, { kind: "divider", name }]);
+  }
+
+  function removeEntry(index: number) {
+    setEntries((prev) => prev.filter((_, i) => i !== index));
   }
 
   function move(index: number, dir: -1 | 1) {
-    setSelected((prev) => {
+    setEntries((prev) => {
       const next = [...prev];
       const target = index + dir;
       if (target < 0 || target >= next.length) return prev;
@@ -69,9 +84,14 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
   }
 
   function changeSemitones(id: string, delta: number) {
-    setSelected((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, semitones: Math.max(-11, Math.min(11, s.semitones + delta)) } : s
+    setEntries((prev) =>
+      prev.map((e) =>
+        e.kind === "song" && e.song.id === id
+          ? {
+              ...e,
+              song: { ...e.song, semitones: Math.max(-11, Math.min(11, e.song.semitones + delta)) },
+            }
+          : e
       )
     );
   }
@@ -83,14 +103,16 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
     try {
       const transpose: Record<string, number> = {};
       for (const s of selected) transpose[s.id] = s.semitones;
+      const { songs, dividers } = splitEntries(entries);
 
       const res = await fetch(initial ? `/api/setlists/${initial.id}` : "/api/setlists", {
         method: initial ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
-          songIds: selected.map((s) => s.id),
+          songIds: songs.map((s) => s.id),
           transpose,
+          dividers,
         }),
       });
       const data = await res.json();
@@ -136,20 +158,15 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
               : "Guardar power"}
       </button>
 
-      {selected.length > 0 && (
+      {entries.length > 0 && (
         <div className="rounded-2xl border border-plum/60 bg-night/40 p-3">
           <span className="mb-2 block text-xs uppercase tracking-wide text-lilac-light">
             Orden del power ({selected.length})
           </span>
           <ul className="flex flex-col gap-1.5">
-            {selected.map((song, i) => (
-              <li
-                key={song.id}
-                className="flex flex-col gap-1.5 rounded-xl bg-night/60 px-3 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="w-5 shrink-0 text-center text-xs text-lilac-light">{i + 1}</span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-mist">{song.title}</span>
+            {entries.map((entry, i) => {
+              const moveButtons = (
+                <>
                   <button
                     onClick={() => move(i, -1)}
                     disabled={i === 0}
@@ -160,48 +177,93 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                   </button>
                   <button
                     onClick={() => move(i, 1)}
-                    disabled={i === selected.length - 1}
+                    disabled={i === entries.length - 1}
                     aria-label="Bajar"
                     className="flex h-7 w-7 items-center justify-center rounded-full bg-plum text-lilac-light disabled:opacity-30"
                   >
                     <ArrowDown size={14} />
                   </button>
                   <button
-                    onClick={() => removeSong(song.id)}
+                    onClick={() => removeEntry(i)}
                     aria-label="Quitar"
                     className="flex h-7 w-7 items-center justify-center rounded-full bg-plum text-lilac-light"
                   >
                     <X size={14} />
                   </button>
-                </div>
-                <div className="ml-7 flex items-center gap-2 text-xs text-lilac-light">
-                  <span>Tono:</span>
-                  <button
-                    onClick={() => changeSemitones(song.id, -1)}
-                    aria-label="Bajar semitono"
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-plum"
+                </>
+              );
+
+              if (entry.kind === "divider") {
+                return (
+                  <li
+                    key={`divider-${i}`}
+                    className="flex items-center gap-2 rounded-xl border border-accent/60 bg-accent/10 px-3 py-2"
                   >
-                    <Minus size={12} />
-                  </button>
-                  <span className="w-14 text-center font-mono text-chord-gold">
-                    {displayChord(song.originalKey, song.semitones, "en")}
-                  </span>
-                  <button
-                    onClick={() => changeSemitones(song.id, 1)}
-                    aria-label="Subir semitono"
-                    className="flex h-6 w-6 items-center justify-center rounded-full bg-plum"
-                  >
-                    <Plus size={12} />
-                  </button>
-                  {song.semitones !== 0 && (
-                    <span className="text-lilac-light/70">(original: {song.originalKey})</span>
-                  )}
-                </div>
-              </li>
-            ))}
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[0.2em] text-accent">
+                      {entry.name}
+                    </span>
+                    {moveButtons}
+                  </li>
+                );
+              }
+
+              const song = entry.song;
+              const songNumber = entries.slice(0, i + 1).filter((e) => e.kind === "song").length;
+              return (
+                <li key={song.id} className="flex flex-col gap-1.5 rounded-xl bg-night/60 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 shrink-0 text-center text-xs text-lilac-light">
+                      {songNumber}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-mist">{song.title}</span>
+                    {moveButtons}
+                  </div>
+                  <div className="ml-7 flex items-center gap-2 text-xs text-lilac-light">
+                    <span>Tono:</span>
+                    <button
+                      onClick={() => changeSemitones(song.id, -1)}
+                      aria-label="Bajar semitono"
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-plum"
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <span className="w-14 text-center font-mono text-chord-gold">
+                      {displayChord(song.originalKey, song.semitones, "en")}
+                    </span>
+                    <button
+                      onClick={() => changeSemitones(song.id, 1)}
+                      aria-label="Subir semitono"
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-plum"
+                    >
+                      <Plus size={12} />
+                    </button>
+                    {song.semitones !== 0 && (
+                      <span className="text-lilac-light/70">(original: {song.originalKey})</span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
+
+      <div>
+        <span className="mb-2 block text-xs uppercase tracking-wide text-lilac-light">
+          Agregar divisor (se suma al final; después lo subís o bajás)
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {DIVIDER_NAMES.map((name) => (
+            <button
+              key={name}
+              onClick={() => addDivider(name)}
+              className="rounded-full border border-accent/60 bg-night/50 px-3 py-1.5 text-xs font-medium tracking-wide text-accent"
+            >
+              + {name}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {!query.trim() && !activeTag && recentlyUsed.length > 0 && (
         <div>

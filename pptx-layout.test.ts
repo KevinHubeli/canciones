@@ -4,6 +4,7 @@ import {
   wrappedLineCountAt,
   linesPerColumnAt,
   MAX_PAGES_PER_SONG,
+  CHORD_COLOR,
 } from "./src/lib/pptx-layout";
 
 let failures = 0;
@@ -31,9 +32,10 @@ function runCase(name: string, body: string, semitones = 0, expectPagesOverLimit
   const { fontSize, pages } = layout;
   const linesPerColumn = linesPerColumnAt(fontSize);
 
-  const totalRunsExpected = buildRuns(body, semitones).length;
+  // Las líneas en blanco al borde de una columna se descartan a propósito.
+  const totalRunsExpected = buildRuns(body, semitones).filter((r) => r.text.trim()).length;
   const totalRunsGot = pages.reduce(
-    (sum, p) => sum + p.columns.reduce((s, c) => s + c.length, 0),
+    (sum, p) => sum + p.columns.reduce((s, c) => s + c.filter((r) => r.text.trim()).length, 0),
     0
   );
   check("no runs lost/duplicated", totalRunsGot === totalRunsExpected, `expected ${totalRunsExpected}, got ${totalRunsGot}`);
@@ -51,12 +53,22 @@ function runCase(name: string, body: string, semitones = 0, expectPagesOverLimit
     check(`page ${pi}: index matches`, page.index === pi);
     check(`page ${pi}: count matches total pages`, page.count === pages.length);
     check(`page ${pi}: at most 2 columns`, page.columns.length <= 2, `got ${page.columns.length}`);
-    check(`page ${pi}: at least 1 non-empty column`, page.columns.some((c) => c.length > 0));
+    check(`page ${pi}: at least 1 non-empty column`, !body.trim() || page.columns.some((c) => c.length > 0));
 
     page.columns.forEach((col, ci) => {
+      const last = col[col.length - 1];
+      check(
+        `page ${pi} col ${ci}: no termina en un acorde suelto`,
+        col.length < 2 || last.options.color !== CHORD_COLOR,
+        `última línea: "${last?.text}"`
+      );
+      check(
+        `page ${pi} col ${ci}: no empieza ni termina en blanco`,
+        col.length === 0 || (!!col[0].text.trim() && !!last.text.trim())
+      );
       const totalLines = col.reduce((s, r) => s + wrappedLineCountAt(r.text, fontSize), 0);
       const overflow = totalLines > linesPerColumn;
-      const singleRunTooBig = col.length === 1 && wrappedLineCountAt(col[0].text, fontSize) > linesPerColumn;
+      const singleRunTooBig = col.length <= 2 && overflow; // un solo bloque (acorde + letra) más alto que la columna
       check(
         `page ${pi} col ${ci}: fits capacity or is a lone oversized run`,
         !overflow || singleRunTooBig,
@@ -151,6 +163,35 @@ runCase(
   "muchos acordes juntos en pocos caracteres (como Desierto en Paraíso)",
   "MIS T[Cm]IERRAS SECAS AHORA SON HU[D]ERT[C]OS D[Bb]E JE[A]HOV[G]Á"
 );
+
+// ---- Texto plano (acordes arriba, letra abajo) ----
+{
+  console.log("\n=== texto plano: Te alabaré ===");
+  const plain = [
+    "E               B",
+    "Eres Tú la única razón de mi",
+    "C#m7             A",
+    "adoración, !oh Jesús!",
+    "F#m7                       E",
+    "    confié en tí me has ayudado",
+    "E                Bsus4",
+    "hoy hay gozo en mi corazón",
+    "      A            B",
+    "con mi canto te alabaré",
+    "",
+    "F#     C#  D#m7        B",
+    "te alabaré mi buen Jesús",
+  ].join("\n");
+  const runs = buildRuns(plain, 0);
+  const chordRuns = runs.filter((r) => r.options.color === CHORD_COLOR);
+  check("texto plano: los 6 renglones de acordes salen en rojo", chordRuns.length === 6, `got ${chordRuns.length}`);
+  const idx = runs.findIndex((r) => r.text.trim() === "con mi canto te alabaré");
+  check("texto plano: acorde pegado a su letra", idx > 0 && runs[idx - 1].options.color === CHORD_COLOR);
+  check("texto plano: la letra no se pinta de rojo", runs[idx].options.color !== CHORD_COLOR);
+  // Dos columnas con pocas líneas: el corte nunca debe dejar un acorde solo al final.
+  runCase("texto plano completo", plain);
+  runCase("texto plano transportado", plain, 2);
+}
 
 console.log(`\n\nRESULTADO: ${passed} OK, ${failures} FAIL`);
 process.exit(failures > 0 ? 1 : 0);

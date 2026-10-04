@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Download, Play } from "lucide-react";
 import { getSetlist } from "@/lib/setlists";
 import { displayChord } from "@/lib/chords";
+import { mergeEntries } from "@/lib/dividers";
 
 export default async function PublicPowerPage({
   params,
@@ -14,6 +15,8 @@ export default async function PublicPowerPage({
   if (!setlist) notFound();
 
   const setParam = setlist.songs.map((s) => s.id).join(",");
+  const entries = mergeEntries(setlist.songs, setlist.dividers);
+  let songIndex = -1;
   const tParam = setlist.songs.map((s) => s.semitones).join(",");
 
   return (
@@ -48,7 +51,20 @@ export default async function PublicPowerPage({
             </Link>
           </div>
           <ul className="flex flex-col gap-2 px-5 pb-10">
-          {setlist.songs.map((song, i) => (
+          {entries.map((entry, n) => {
+            if (entry.kind === "divider") {
+              return (
+                <li
+                  key={`divider-${n}`}
+                  className="px-1 pt-3 text-xs font-semibold tracking-[0.3em] text-accent"
+                >
+                  {entry.name}
+                </li>
+              );
+            }
+            const song = entry.song;
+            const i = ++songIndex;
+            return (
             <li key={song.id}>
               <Link
                 href={`/canciones/${song.id}?set=${setParam}&i=${i}&t=${tParam}`}
@@ -66,7 +82,8 @@ export default async function PublicPowerPage({
                 </span>
               </Link>
             </li>
-          ))}
+            );
+          })}
           </ul>
         </>
       )}

@@ -38,6 +38,9 @@ export const setlists = pgTable("setlists", {
   // toca el tono original de la canción, solo cómo se ve/exporta acá).
   // Formato: { [songId]: semitones }
   transpose: jsonb("transpose").notNull().default(sql`'{}'::jsonb`),
+  // Divisores de sección (ALABANZA, ADORACIÓN...). Formato: [{ name, position }]
+  // donde position = cantidad de canciones que van antes del divisor.
+  dividers: jsonb("dividers").notNull().default(sql`'[]'::jsonb`),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

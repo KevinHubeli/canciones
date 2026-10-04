@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
 import { deleteSetlist, getSetlist, updateSetlist } from "@/lib/setlists";
+import { sanitizeDividers, type SetlistDivider } from "@/lib/dividers";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -39,17 +40,25 @@ export async function PATCH(
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
   }
 
-  let body: { title?: unknown; songIds?: unknown; transpose?: unknown };
+  let body: { title?: unknown; songIds?: unknown; transpose?: unknown; dividers?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
   }
 
-  const update: Partial<{ title: string; songIds: string[]; transpose: Record<string, number> }> = {};
+  const update: Partial<{
+    title: string;
+    songIds: string[];
+    transpose: Record<string, number>;
+    dividers: SetlistDivider[];
+  }> = {};
   if (typeof body.title === "string" && body.title.trim()) update.title = body.title.trim();
   if (Array.isArray(body.songIds)) {
     update.songIds = body.songIds.filter((id): id is string => typeof id === "string");
+  }
+  if (Array.isArray(body.dividers)) {
+    update.dividers = sanitizeDividers(body.dividers, update.songIds?.length ?? Infinity);
   }
   if (body.transpose && typeof body.transpose === "object") {
     const out: Record<string, number> = {};

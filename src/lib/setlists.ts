@@ -2,6 +2,7 @@ import { desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { setlists, songs, type SetlistRow } from "@/db/schema";
 import type { SongSummary } from "@/lib/types";
+import { sanitizeDividers, type SetlistDivider } from "@/lib/dividers";
 
 export type SetlistSummary = {
   id: string;
@@ -16,6 +17,7 @@ export type Setlist = {
   id: string;
   title: string;
   songs: SetlistSong[];
+  dividers: SetlistDivider[];
   updatedAt: string;
 };
 
@@ -45,7 +47,13 @@ export async function getSetlist(id: string): Promise<Setlist | null> {
   if (!row) return null;
 
   if (row.songIds.length === 0) {
-    return { id: row.id, title: row.title, songs: [], updatedAt: row.updatedAt.toISOString() };
+    return {
+      id: row.id,
+      title: row.title,
+      songs: [],
+      dividers: sanitizeDividers(row.dividers, 0),
+      updatedAt: row.updatedAt.toISOString(),
+    };
   }
 
   const transpose = transposeMap(row);
@@ -65,24 +73,43 @@ export async function getSetlist(id: string): Promise<Setlist | null> {
       semitones: transpose[s.id] ?? 0,
     }));
 
-  return { id: row.id, title: row.title, songs: ordered, updatedAt: row.updatedAt.toISOString() };
+  // Si alguna canción se borró de la base, los divisores se corren para seguir
+  // en el mismo lugar relativo a las canciones que quedan.
+  const dividers = sanitizeDividers(row.dividers, row.songIds.length).map((d) => ({
+    ...d,
+    position: row.songIds.slice(0, d.position).filter((id) => byId.has(id)).length,
+  }));
+
+  return {
+    id: row.id,
+    title: row.title,
+    songs: ordered,
+    dividers,
+    updatedAt: row.updatedAt.toISOString(),
+  };
 }
 
 export async function createSetlist(input: {
   title: string;
   songIds: string[];
   transpose?: Record<string, number>;
+  dividers?: SetlistDivider[];
 }): Promise<SetlistSummary> {
   const [row] = await getDb()
     .insert(setlists)
-    .values({ ...input, transpose: input.transpose ?? {} })
+    .values({ ...input, transpose: input.transpose ?? {}, dividers: input.dividers ?? [] })
     .returning();
   return toSummary(row);
 }
 
 export async function updateSetlist(
   id: string,
-  input: Partial<{ title: string; songIds: string[]; transpose: Record<string, number> }>
+  input: Partial<{
+    title: string;
+    songIds: string[];
+    transpose: Record<string, number>;
+    dividers: SetlistDivider[];
+  }>
 ): Promise<SetlistSummary | null> {
   const [row] = await getDb()
     .update(setlists)

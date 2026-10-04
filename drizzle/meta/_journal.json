@@ -36,6 +36,13 @@
       "when": 1789358552100,
       "tag": "0004_careful_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791131652736,
+      "tag": "0005_old_hulk",
+      "breakpoints": true
     }
   ]
 }

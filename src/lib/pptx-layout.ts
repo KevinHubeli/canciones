@@ -96,18 +96,62 @@ function splitLongRawLine(raw: string, maxChars = MAX_LINE_CHARS): string[] {
   return [...splitLongRawLine(firstRaw, maxChars), ...splitLongRawLine(secondRaw, maxChars)];
 }
 
+// Un token de acorde en texto plano: raíz, calidad (m, maj7, sus4, dim...),
+// extensiones y bajo opcional ("D/F#").
+const PLAIN_CHORD_RE =
+  /^[A-G](#|b)?(maj|min|m|M|dim|aug|sus|add)?\d{0,2}((sus|add|maj)?\d{1,2}|[#b]\d{1,2}|\([^)]*\))*(\/[A-G](#|b)?)?$/;
+
+function isPlainChordLine(line: string): boolean {
+  const tokens = line.trim().split(/\s+/);
+  return tokens[0] !== "" && tokens.every((t) => PLAIN_CHORD_RE.test(t));
+}
+
 /**
- * Convierte el texto de una canción ("[Am]Cantaré") en pares de líneas
- * chord/letra: el acorde va en su propia línea, ubicado (con espacios) en
- * la columna donde se toca sobre la palabra de abajo. Las líneas en blanco
- * del original se conservan como separador visual entre estrofas. Las
- * líneas de letra muy largas se cortan al medio (ver splitLongRawLine).
+ * Algunas canciones vienen en texto plano (acordes en una línea y la letra
+ * en la de abajo) en vez de "[Am]letra". Las convertimos al formato con
+ * corchetes para que reciban el mismo tratamiento: acordes en rojo, pegados
+ * a su letra y cortados junto con ella si la línea es muy larga.
  */
-export function buildRuns(body: string, semitones: number): Run[] {
-  const runs: Run[] = [];
-  for (const originalRaw of body.split("\n")) {
+function normalizePlainChordLines(body: string): string[] {
+  const lines = body.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!isPlainChordLine(line)) {
+      out.push(line);
+      continue;
+    }
+    const tokens = [...line.matchAll(/\S+/g)].map((m) => ({ chord: m[0], index: m.index ?? 0 }));
+    const next = lines[i + 1];
+    if (next === undefined || !next.trim() || isPlainChordLine(next)) {
+      out.push(tokens.map((t) => `[${t.chord}]`).join(" "));
+      continue;
+    }
+    let lyrics = next;
+    for (const t of [...tokens].reverse()) {
+      lyrics = lyrics.padEnd(t.index);
+      lyrics = lyrics.slice(0, t.index) + `[${t.chord}]` + lyrics.slice(t.index);
+    }
+    out.push(lyrics);
+    i++;
+  }
+  return out;
+}
+
+/**
+ * Convierte el texto de una canción ("[Am]Cantaré") en bloques: cada bloque
+ * es un par acorde/letra (el acorde va en su propia línea, ubicado con
+ * espacios sobre la palabra de abajo) o una línea suelta. Las líneas en
+ * blanco del original quedan como bloques vacíos (separador entre estrofas).
+ * Las líneas de letra muy largas se cortan al medio (ver splitLongRawLine).
+ * Un bloque nunca se parte al paginar: el acorde siempre queda con su letra.
+ */
+export function buildBlocks(body: string, semitones: number): Run[][] {
+  const blocks: Run[][] = [];
+  for (const originalRaw of normalizePlainChordLines(body)) {
     for (const raw of splitLongRawLine(originalRaw)) {
       const { lyrics, chords } = parseSongLine(raw);
+      const block: Run[] = [];
       if (chords.length > 0) {
         const named = chords.map((c) => ({ ...c, chord: transposeChord(c.chord, semitones) }));
         let chordLine: string;
@@ -122,12 +166,23 @@ export function buildRuns(body: string, semitones: number): Run[] {
             chordLine += " ".repeat(target - chordLine.length) + c.chord;
           }
         }
-        runs.push({ text: chordLine, options: { color: CHORD_COLOR, breakLine: true, bold: true } });
+        block.push({ text: chordLine, options: { color: CHORD_COLOR, breakLine: true, bold: true } });
       }
-      runs.push({ text: lyrics || " ", options: { color: LYRIC_COLOR, breakLine: true } });
+      if (lyrics.trim() || chords.length === 0) {
+        block.push({ text: lyrics || " ", options: { color: LYRIC_COLOR, breakLine: true } });
+      }
+      blocks.push(block);
     }
   }
-  return runs;
+  return blocks;
+}
+
+export function buildRuns(body: string, semitones: number): Run[] {
+  return buildBlocks(body, semitones).flat();
+}
+
+function isBlankBlock(block: Run[]): boolean {
+  return block.length === 1 && !block[0].text.trim();
 }
 
 export function linesPerColumnAt(fontSize: number): number {
@@ -144,34 +199,44 @@ export function wrappedLineCount(text: string): number {
   return wrappedLineCountAt(text, FONT_SIZE);
 }
 
-/**
- * Reparte los runs de una canción en columnas de a lo sumo linesPerColumn
- * líneas (contando el wrap de las más largas), para un tamaño de fuente
- * dado. El contenido fluye de forma continua (como un diario a dos
- * columnas), sin recortar el tamaño de letra dentro de una misma canción.
- */
-export function paginateColumnsAt(runs: Run[], fontSize: number): Run[][] {
-  const linesPerColumn = linesPerColumnAt(fontSize);
-  const columns: Run[][] = [];
-  let current: Run[] = [];
-  let currentLines = 0;
-
-  for (const run of runs) {
-    const lines = wrappedLineCountAt(run.text, fontSize);
-    if (current.length > 0 && currentLines + lines > linesPerColumn) {
-      columns.push(current);
-      current = [];
-      currentLines = 0;
-    }
-    current.push(run);
-    currentLines += lines;
-  }
-  if (current.length > 0) columns.push(current);
-  return columns.length > 0 ? columns : [[]];
+function blockLinesAt(block: Run[], fontSize: number): number {
+  return block.reduce((sum, r) => sum + wrappedLineCountAt(r.text, fontSize), 0);
 }
 
-export function paginateColumns(runs: Run[]): Run[][] {
-  return paginateColumnsAt(runs, FONT_SIZE);
+/**
+ * Reparte los bloques de una canción en columnas de a lo sumo
+ * linesPerColumn líneas (contando el wrap de las más largas), para un tamaño
+ * de fuente dado. El contenido fluye de forma continua (como un diario a dos
+ * columnas), pero un bloque (acorde + su letra) nunca se parte entre
+ * columnas. Las líneas en blanco no se dejan ni al principio ni al final de
+ * una columna.
+ */
+export function paginateBlocksAt(blocks: Run[][], fontSize: number): Run[][] {
+  const linesPerColumn = linesPerColumnAt(fontSize);
+  const columns: Run[][][] = [];
+  let current: Run[][] = [];
+  let currentLines = 0;
+
+  const closeColumn = () => {
+    while (current.length > 0 && isBlankBlock(current[current.length - 1])) current.pop();
+    if (current.length > 0) columns.push(current);
+    current = [];
+    currentLines = 0;
+  };
+
+  for (const block of blocks) {
+    const blank = isBlankBlock(block);
+    if (blank && current.length === 0) continue;
+    const lines = blockLinesAt(block, fontSize);
+    if (current.length > 0 && currentLines + lines > linesPerColumn) {
+      closeColumn();
+      if (blank) continue;
+    }
+    current.push(block);
+    currentLines += lines;
+  }
+  closeColumn();
+  return columns.length > 0 ? columns.map((c) => c.flat()) : [[]];
 }
 
 export function chunkPairs<T>(items: T[]): T[][] {
@@ -190,12 +255,13 @@ export type SongLayout = { fontSize: number; pages: SongPage[] };
  * letra). Si ninguna combinación logra ambas cosas, se prioriza el límite
  * de hojas por sobre evitar el envolvido.
  */
-export function pickFontSizeForSong(runs: Run[]): number {
+export function pickFontSizeForSong(blocks: Run[][]): number {
+  const runs = blocks.flat();
   let bestWithinPages = MIN_FONT_SIZE;
   let foundWithinPages = false;
 
   for (let fontSize = MAX_FONT_SIZE; fontSize >= MIN_FONT_SIZE; fontSize--) {
-    const columns = paginateColumnsAt(runs, fontSize);
+    const columns = paginateBlocksAt(blocks, fontSize);
     const pages = Math.ceil(columns.length / 2);
     if (pages > MAX_PAGES_PER_SONG) continue;
 
@@ -214,9 +280,9 @@ export function pickFontSizeForSong(runs: Run[]): number {
 /** Arma las páginas (de a 2 columnas) para una canción completa, con el
  * tamaño de letra más grande que respeta el máximo de hojas por canción. */
 export function paginateSong(body: string, semitones: number): SongLayout {
-  const runs = buildRuns(body, semitones);
-  const fontSize = pickFontSizeForSong(runs);
-  const columns = paginateColumnsAt(runs, fontSize);
+  const blocks = buildBlocks(body, semitones);
+  const fontSize = pickFontSizeForSong(blocks);
+  const columns = paginateBlocksAt(blocks, fontSize);
   const pages = chunkPairs(columns);
   return {
     fontSize,

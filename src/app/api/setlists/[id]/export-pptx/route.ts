@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import PptxGenJS from "pptxgenjs";
 import { getSetlist } from "@/lib/setlists";
 import { getSong } from "@/lib/songs";
+import { mergeEntries } from "@/lib/dividers";
 import {
   COL_GAP_IN,
   COL_HEIGHT_IN,
   COL_TOP_IN,
   COL_WIDTH_IN,
+  CHORD_COLOR,
   MARGIN_X_IN,
   SLIDE_HEIGHT_IN,
   SLIDE_WIDTH_IN,
@@ -34,7 +36,11 @@ export async function GET(
 
   const songs = await Promise.all(setlist.songs.map((s) => getSong(s.id)));
 
-  type SlideData = {
+  type SlideData =
+    | { kind: "divider"; name: string }
+    | SongSlideData;
+  type SongSlideData = {
+    kind: "song";
     title: string;
     columns: Run[][];
     index: number;
@@ -43,17 +49,25 @@ export async function GET(
   };
   const slidesData: SlideData[] = [];
 
-  for (let i = 0; i < songs.length; i++) {
-    const song = songs[i];
+  // Cada divisor es una diapositiva propia, en el lugar donde quedó entre canciones.
+  const entries = mergeEntries(
+    setlist.songs.map((s, i) => ({ semitones: s.semitones, song: songs[i] })),
+    setlist.dividers
+  );
+  for (const entry of entries) {
+    if (entry.kind === "divider") {
+      slidesData.push({ kind: "divider", name: entry.name });
+      continue;
+    }
+    const { song, semitones } = entry.song;
     if (!song) continue;
-    const semitones = setlist.songs[i]?.semitones ?? 0;
     const { fontSize, pages } = paginateSong(song.body, semitones);
     for (const page of pages) {
-      slidesData.push({ title: song.title, fontSize, ...page });
+      slidesData.push({ kind: "song", title: song.title, fontSize, ...page });
     }
   }
 
-  if (slidesData.length === 0) {
+  if (!slidesData.some((d) => d.kind === "song")) {
     return NextResponse.json({ error: "El power no tiene canciones." }, { status: 400 });
   }
 
@@ -64,6 +78,30 @@ export async function GET(
   for (const d of slidesData) {
     const slide = pptx.addSlide();
     slide.background = { color: "FFFFFF" };
+    if (d.kind === "divider") {
+      slide.addText(d.name, {
+        x: 0,
+        y: SLIDE_HEIGHT_IN / 2 - 0.9,
+        w: SLIDE_WIDTH_IN,
+        h: 1.4,
+        fontSize: 66,
+        bold: true,
+        color: "111111",
+        align: "center",
+        valign: "middle",
+        fontFace: "Arial",
+        charSpacing: 6,
+      });
+      slide.addShape(pptx.ShapeType.rect, {
+        x: SLIDE_WIDTH_IN / 2 - 1.2,
+        y: SLIDE_HEIGHT_IN / 2 + 0.7,
+        w: 2.4,
+        h: 0.06,
+        fill: { color: CHORD_COLOR },
+        line: { color: CHORD_COLOR, width: 0 },
+      });
+      continue;
+    }
     slide.addText(d.title.toUpperCase(), {
       x: MARGIN_X_IN,
       y: 0.25,

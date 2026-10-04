@@ -1,0 +1,1 @@
+ALTER TABLE "setlists" ADD COLUMN "dividers" jsonb DEFAULT '[]'::jsonb NOT NULL;
