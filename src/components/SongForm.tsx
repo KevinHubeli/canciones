@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizePlainChordLines } from "@/lib/chords";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Song } from "@/lib/types";
@@ -74,7 +75,7 @@ export default function SongForm({ initial }: { initial?: Song }) {
     }
   }
 
-  const previewLines = body.split("\n").slice(0, 6);
+  const previewLines = normalizePlainChordLines(body).slice(0, 6);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4 px-5 pb-10">

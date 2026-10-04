@@ -1,4 +1,10 @@
-import { parseSongLine, transposeChord, type ParsedChord } from "@/lib/chords";
+import {
+  normalizePlainChordLines,
+  parseSongLine,
+  toEnglishNotation,
+  transposeChord,
+  type ParsedChord,
+} from "@/lib/chords";
 
 export type Run = { text: string; options: { color: string; breakLine: boolean; bold?: boolean } };
 
@@ -96,48 +102,6 @@ function splitLongRawLine(raw: string, maxChars = MAX_LINE_CHARS): string[] {
   return [...splitLongRawLine(firstRaw, maxChars), ...splitLongRawLine(secondRaw, maxChars)];
 }
 
-// Un token de acorde en texto plano: raíz, calidad (m, maj7, sus4, dim...),
-// extensiones y bajo opcional ("D/F#").
-const PLAIN_CHORD_RE =
-  /^[A-G](#|b)?(maj|min|m|M|dim|aug|sus|add)?\d{0,2}((sus|add|maj)?\d{1,2}|[#b]\d{1,2}|\([^)]*\))*(\/[A-G](#|b)?)?$/;
-
-function isPlainChordLine(line: string): boolean {
-  const tokens = line.trim().split(/\s+/);
-  return tokens[0] !== "" && tokens.every((t) => PLAIN_CHORD_RE.test(t));
-}
-
-/**
- * Algunas canciones vienen en texto plano (acordes en una línea y la letra
- * en la de abajo) en vez de "[Am]letra". Las convertimos al formato con
- * corchetes para que reciban el mismo tratamiento: acordes en rojo, pegados
- * a su letra y cortados junto con ella si la línea es muy larga.
- */
-function normalizePlainChordLines(body: string): string[] {
-  const lines = body.split("\n");
-  const out: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!isPlainChordLine(line)) {
-      out.push(line);
-      continue;
-    }
-    const tokens = [...line.matchAll(/\S+/g)].map((m) => ({ chord: m[0], index: m.index ?? 0 }));
-    const next = lines[i + 1];
-    if (next === undefined || !next.trim() || isPlainChordLine(next)) {
-      out.push(tokens.map((t) => `[${t.chord}]`).join(" "));
-      continue;
-    }
-    let lyrics = next;
-    for (const t of [...tokens].reverse()) {
-      lyrics = lyrics.padEnd(t.index);
-      lyrics = lyrics.slice(0, t.index) + `[${t.chord}]` + lyrics.slice(t.index);
-    }
-    out.push(lyrics);
-    i++;
-  }
-  return out;
-}
-
 /**
  * Convierte el texto de una canción ("[Am]Cantaré") en bloques: cada bloque
  * es un par acorde/letra (el acorde va en su propia línea, ubicado con
@@ -153,7 +117,7 @@ export function buildBlocks(body: string, semitones: number): Run[][] {
       const { lyrics, chords } = parseSongLine(raw);
       const block: Run[] = [];
       if (chords.length > 0) {
-        const named = chords.map((c) => ({ ...c, chord: transposeChord(c.chord, semitones) }));
+        const named = chords.map((c) => ({ ...c, chord: transposeChord(toEnglishNotation(c.chord), semitones) }));
         let chordLine: string;
         if (!lyrics.trim()) {
           // Línea solo de acordes (ej. intro): sin letra abajo para alinear,

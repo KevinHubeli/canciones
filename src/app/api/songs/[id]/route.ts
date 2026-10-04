@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteSong, getSong, updateSong } from "@/lib/songs";
 import { requireAdmin } from "@/lib/session";
+import { normalizePlainChords } from "@/lib/chords";
 import { SONG_TAGS } from "@/lib/tags";
 
 const UUID_RE =
@@ -63,7 +64,7 @@ export async function PATCH(
       (t): t is string => typeof t === "string" && (SONG_TAGS as readonly string[]).includes(t)
     );
   }
-  if (typeof body.body === "string" && body.body.trim()) update.body = body.body;
+  if (typeof body.body === "string" && body.body.trim()) update.body = normalizePlainChords(body.body);
 
   try {
     const song = await updateSong(id, update);

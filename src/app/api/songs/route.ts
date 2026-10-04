@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSong, listSongs } from "@/lib/songs";
 import { requireAdmin } from "@/lib/session";
+import { normalizePlainChords } from "@/lib/chords";
 import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
 
 const DEFAULT_LIMIT = 24;
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
             (t): t is string => typeof t === "string" && (SONG_TAGS as readonly string[]).includes(t)
           )
         : [],
-      body: body.body,
+      body: normalizePlainChords(body.body),
     });
     return NextResponse.json({ song });
   } catch (err) {

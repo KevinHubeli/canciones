@@ -4,7 +4,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Song } from "@/lib/types";
-import { displayChord, parseSongLine, type ChordNotation } from "@/lib/chords";
+import {
+  displayChord,
+  normalizePlainChordLines,
+  parseSongLine,
+  type ChordNotation,
+} from "@/lib/chords";
 import ChordLine from "@/components/ChordLine";
 import FabMenu from "@/components/FabMenu";
 import ChordDiagramPopover from "@/components/ChordDiagramPopover";
@@ -50,7 +55,7 @@ export default function SongViewer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement | null>(null);
 
-  const lines = useMemo(() => song.body.split("\n"), [song.body]);
+  const lines = useMemo(() => normalizePlainChordLines(song.body), [song.body]);
   const fontSizePx = PREFERRED_PX[textSizeIndex];
 
   // Ancho de columna "de lectura" ideal para esta canción en particular: la
