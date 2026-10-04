@@ -100,5 +100,30 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
   check("transpone igual", parseSongLine(lines[0]).chords.map((c) => displayChord(c.chord, 2, "en")).join() === "Bm");
 }
 
+// ---- Intros en texto plano ----
+{
+  const up = (line: string, semitones: number) => {
+    const n = normalizePlainChords(line);
+    return parseSongLine(n).chords.map((c) => displayChord(c.chord, semitones, "en")).join(" ");
+  };
+  check("Intro: Am F C G", up("Intro:  Am  F   C    G", 2) === "Bm G D A", up("Intro:  Am  F   C    G", 2));
+  check("Intro con guiones", up("Intro: G-Dm-C-G", 2) === "A Em D A");
+  check("Intro con ' // ' y sin dos puntos", up("Intro // Gm7 - F - Ebm7 - F //", 2) === "Am7 G Fm7 G", up("Intro // Gm7 - F - Ebm7 - F //", 2));
+  check("INTRO con (4x) y 7mas", up("INTRO(4x): Bm - A6 - F#m7 - G", 2) === "C#m B6 G#m7 A");
+  check("Puente con bajo (C/E)", up("PUENTE: C/E – Bb – F - C", 2) === "D/F# C G D", up("PUENTE: C/E – Bb – F - C", 2));
+  check("Intro con barras sueltas", up("INTRO:  G / D/ E /C", 2) === "A E F# D");
+  check("Intro pegada: D////A////E////Bm////", up("INTRO : D////A////E////Bm////", 2) === "E B F# C#m");
+  check("Intro en latino mayúsculas", up("INTRO: LA – SOL – (FA – Rem ) - MI", 2) === "B A G Em F#", up("INTRO: LA – SOL – (FA – Rem ) - MI", 2));
+  check("Intro latino con # y b", up("Intro: SOL#- RE#(Mib)- LA#(SIb)- DOm", 2) === "A# F F C C Dm", up("Intro: SOL#- RE#(Mib)- LA#(SIb)- DOm", 2));
+  const marker = normalizePlainChords("Intro: Am - G (4 veces)");
+  check("la marca (4 veces) se conserva", marker.includes("(4 veces)") && marker.includes("[Am]"), marker);
+  for (const text of ["INTRO", "Puente 1 (X2):", "Solo Dios es digno", "Final feliz", "Coro de ángeles", "Intro con trompetas", "Solo Bateria", "INTRO CON TROMPETA"]) {
+    check(`no toca "${text}"`, normalizePlainChords(text) === text, normalizePlainChords(text));
+  }
+  const again = normalizePlainChords(normalizePlainChords("Intro: Am - F"));
+  check("es idempotente", again === normalizePlainChords("Intro: Am - F"));
+  check("ya con corchetes: sigue igual", normalizePlainChords("INTRO: [D] [Bm]") === "INTRO: [D] [Bm]");
+}
+
 console.log(`\nRESULTADO: ${passed} OK, ${failures} FAIL`);
 process.exit(failures > 0 ? 1 : 0);

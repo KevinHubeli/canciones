@@ -116,6 +116,10 @@ export function toEnglishNotation(chord: string): string {
     if (chord.startsWith(latin)) {
       return en + chord.slice(latin.length);
     }
+    // También en mayúsculas ("SOL#", "DOm", "LA"), como vienen en algunas intros.
+    if (chord.startsWith(latin.toUpperCase())) {
+      return en + chord.slice(latin.length);
+    }
   }
   return chord; // ya está en inglés o no se reconoce
 }
@@ -224,6 +228,65 @@ function hasDecoration(line: string): boolean {
     .some((t) => !PLAIN_CHORD_RE.test(t));
 }
 
+// Líneas tipo "Intro: Am - F - C - G" o "INTRO(4x): Bm - A6 - F#m7 - G": una
+// etiqueta de sección y, a continuación, solo acordes separados por espacios,
+// guiones o barras. Acá también valen las notas en latino en mayúsculas
+// (SOL#, DOm, LA, Rem), que en una línea suelta se podrían confundir con letra.
+const SECTION_LABEL_RE =
+  /^(\s*)((?:intro(?:ducci[oó]n)?|interludio|puente|instrumental|final|solo|pre-?coro|outro|coro|estrofa|verso|refr[aá]n)\b(?:\s*\([^)]*\))?)\s*(?:[:：]|\/\/)?\s*/i;
+const SCAN_ROOT = "(?:DO|RE|MI|FA|SOL|LA|SI|Do|Re|Mi|Fa|Sol|La|Si|[A-G])";
+const SCAN_CHORD_RE = new RegExp(
+  `^${SCAN_ROOT}(?:#|b)?(?:maj|min|m|M|dim|aug|sus|add)?\\d{0,2}(?:(?:sus|add|maj)?\\d{1,2}|[#b]\\d{1,2})*(?:\\/${SCAN_ROOT}(?:#|b)?)?(?![A-Za-z0-9#])`
+);
+const SCAN_MARKER_RE = /^\(\s*(?:x\s*\d+|\d+\s*(?:x|veces|vez))\s*\)/i;
+const SCAN_SEPARATOR_RE = /^[-–—/|,;:()]+/;
+
+/**
+ * Pasa una línea de sección con acordes en texto plano ("Intro: Am F C G") al
+ * formato con corchetes ("Intro: [Am] [F] [C] [G]"), para que se pinte en rojo
+ * y cambie de tono como el resto. Devuelve null si la línea no es de ese tipo
+ * (por ejemplo "Solo Dios es digno", donde después de la etiqueta hay letra).
+ */
+function convertSectionChordLine(line: string): string | null {
+  const label = line.match(SECTION_LABEL_RE);
+  if (!label) return null;
+
+  const items: { text: string; isChord: boolean }[] = [];
+  let rest = line.slice(label[0].length);
+  while (rest.length > 0) {
+    const space = rest.match(/^\s+/);
+    if (space) {
+      rest = rest.slice(space[0].length);
+      continue;
+    }
+    const marker = rest.match(SCAN_MARKER_RE);
+    if (marker) {
+      items.push({ text: marker[0], isChord: false });
+      rest = rest.slice(marker[0].length);
+      continue;
+    }
+    const separator = rest.match(SCAN_SEPARATOR_RE);
+    if (separator) {
+      rest = rest.slice(separator[0].length);
+      continue;
+    }
+    const chord = rest.match(SCAN_CHORD_RE);
+    if (!chord) return null;
+    items.push({ text: chord[0], isChord: true });
+    rest = rest.slice(chord[0].length);
+  }
+  if (!items.some((i) => i.isChord)) return null;
+
+  // Cada acorde deja el ancho de su nombre (+1) en la letra de abajo, para que
+  // al dibujarlos arriba no se pisen entre sí.
+  let result = `${label[1]}${label[2]}: `;
+  items.forEach((item, i) => {
+    if (i > 0) result += " ".repeat(items[i - 1].text.length + 1);
+    result += item.isChord ? `[${item.text}]` : item.text;
+  });
+  return result;
+}
+
 /**
  * Algunas canciones vienen en texto plano (acordes en una línea y la letra
  * en la de abajo) en vez de "[Am]letra". Las convertimos al formato con
@@ -235,6 +298,13 @@ export function normalizePlainChordLines(body: string): string[] {
   const out: string[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (!line.includes("[")) {
+      const section = convertSectionChordLine(line);
+      if (section !== null) {
+        out.push(section);
+        continue;
+      }
+    }
     if (!isPlainChordLine(line)) {
       out.push(line);
       continue;
