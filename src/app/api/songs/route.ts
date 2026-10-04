@@ -5,7 +5,7 @@ import { normalizePlainChords } from "@/lib/chords";
 import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
 
 const DEFAULT_LIMIT = 24;
-const MAX_LIMIT = 100;
+const MAX_LIMIT = 500;
 const ALL_FILTERS: string[] = [...SONG_TAGS, NO_CHORDS_FILTER];
 
 export async function GET(request: NextRequest) {

@@ -3,6 +3,16 @@ import { requireAdmin } from "@/lib/session";
 import { createSetlist, listSetlists } from "@/lib/setlists";
 import { sanitizeDividers } from "@/lib/dividers";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Solo ids con forma de uuid (si no, Postgres tira error) y sin repetir. */
+function parseSongIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const ids = input.filter((id): id is string => typeof id === "string" && UUID_RE.test(id));
+  return [...new Set(ids)];
+}
+
 function parseTranspose(input: unknown): Record<string, number> {
   if (!input || typeof input !== "object") return {};
   const out: Record<string, number> = {};
@@ -38,9 +48,7 @@ export async function POST(request: NextRequest) {
   if (typeof body.title !== "string" || !body.title.trim()) {
     return NextResponse.json({ error: "Falta el nombre del power." }, { status: 400 });
   }
-  const songIds = Array.isArray(body.songIds)
-    ? body.songIds.filter((id): id is string => typeof id === "string")
-    : [];
+  const songIds = parseSongIds(body.songIds);
   const transpose = parseTranspose(body.transpose);
   const dividers = sanitizeDividers(body.dividers, songIds.length);
 

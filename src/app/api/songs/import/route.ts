@@ -4,6 +4,11 @@ import { importFromCifraClub } from "@/lib/importers/cifraclub";
 import { importFromLaCuerda } from "@/lib/importers/lacuerda";
 import { ImportError } from "@/lib/importers/shared";
 
+// Coincidencia estricta: "lacuerda.net.evil.com" o "evil.com/lacuerda.net" no pasan.
+function isHostOf(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
 export async function POST(request: NextRequest) {
   if (!(await requireAdmin())) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
@@ -28,11 +33,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    if (host.includes("cifraclub")) {
+    if (isHostOf(host, "cifraclub.com") || isHostOf(host, "cifraclub.com.br")) {
       const song = await importFromCifraClub(body.url);
       return NextResponse.json(song);
     }
-    if (host.includes("lacuerda.net")) {
+    if (isHostOf(host, "lacuerda.net")) {
       const song = await importFromLaCuerda(body.url);
       return NextResponse.json(song);
     }

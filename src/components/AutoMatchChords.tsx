@@ -14,8 +14,9 @@ export default function AutoMatchChords() {
 
   useEffect(() => {
     fetch("/api/songs/without-chords")
-      .then((res) => res.json())
-      .then((data) => setSongs(data.songs ?? []));
+      .then((res) => (res.ok ? res.json() : { songs: [] }))
+      .then((data) => setSongs(data.songs ?? []))
+      .catch(() => setSongs([]));
   }, []);
 
   async function handleRun() {

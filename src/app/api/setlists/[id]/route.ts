@@ -55,7 +55,11 @@ export async function PATCH(
   }> = {};
   if (typeof body.title === "string" && body.title.trim()) update.title = body.title.trim();
   if (Array.isArray(body.songIds)) {
-    update.songIds = body.songIds.filter((id): id is string => typeof id === "string");
+    update.songIds = [
+      ...new Set(
+        body.songIds.filter((sid): sid is string => typeof sid === "string" && UUID_RE.test(sid))
+      ),
+    ];
   }
   if (Array.isArray(body.dividers)) {
     update.dividers = sanitizeDividers(body.dividers, update.songIds?.length ?? Infinity);

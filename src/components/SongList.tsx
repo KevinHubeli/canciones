@@ -21,6 +21,8 @@ export default function SongList() {
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<RecentSong[]>([]);
   const loadingRef = useRef(false);
+  // Número de la última búsqueda: una respuesta vieja (de lo que se tipeó antes) se descarta.
+  const searchIdRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,7 +30,9 @@ export default function SongList() {
   }, []);
 
   const load = useCallback(async (q: string, tags: string[], offset: number) => {
-    if (loadingRef.current) return;
+    // "Cargar más" no se pisa a sí mismo, pero una búsqueda nueva siempre arranca.
+    if (offset > 0 && loadingRef.current) return;
+    const searchId = offset === 0 ? ++searchIdRef.current : searchIdRef.current;
     loadingRef.current = true;
     if (offset === 0) setInitialLoading(true);
     else setLoadingMore(true);
@@ -44,14 +48,18 @@ export default function SongList() {
       const res = await fetch(`/api/songs?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+      if (searchId !== searchIdRef.current) return;
       setSongs((prev) => (offset === 0 ? data.songs : [...prev, ...data.songs]));
       setHasMore(Boolean(data.hasMore));
     } catch {
+      if (searchId !== searchIdRef.current) return;
       setError("No pudimos cargar las canciones. Probá de nuevo en un rato.");
     } finally {
-      loadingRef.current = false;
-      setInitialLoading(false);
-      setLoadingMore(false);
+      if (searchId === searchIdRef.current) {
+        loadingRef.current = false;
+        setInitialLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, []);
 

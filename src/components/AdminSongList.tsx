@@ -17,22 +17,37 @@ export default function AdminSongList() {
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SongSummary | null>(null);
   const [pendingUndo, setPendingUndo] = useState<SongSummary | null>(null);
+  // El borrado real se manda a los UNDO_MS; mientras tanto se puede deshacer.
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRef = useRef<SongSummary | null>(null);
+  const latestLoad = useRef(0);
+
+  // Manda ya el borrado pendiente (si lo hay). Se usa al borrar otra canción
+  // mientras queda una pendiente y al salir de la pantalla: sin esto, esa
+  // canción figuraba como eliminada pero seguía en la base.
+  function flushPending() {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = null;
+    const song = pendingRef.current;
+    pendingRef.current = null;
+    if (song) fetch(`/api/songs/${song.id}`, { method: "DELETE", keepalive: true }).catch(() => {});
+  }
 
   async function load(q: string) {
+    const loadId = ++latestLoad.current;
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ limit: "200" });
+      const params = new URLSearchParams({ limit: "500" });
       if (q) params.set("q", q);
       const res = await fetch(`/api/songs?${params}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setSongs(data.songs);
+      if (loadId === latestLoad.current) setSongs(data.songs);
     } catch {
-      setError("No pudimos cargar las canciones.");
+      if (loadId === latestLoad.current) setError("No pudimos cargar las canciones.");
     } finally {
-      setLoading(false);
+      if (loadId === latestLoad.current) setLoading(false);
     }
   }
 
@@ -42,26 +57,28 @@ export default function AdminSongList() {
   }, [query]);
 
   useEffect(() => {
-    return () => {
-      if (undoTimer.current) clearTimeout(undoTimer.current);
-    };
+    return () => flushPending();
   }, []);
 
   function handleDelete() {
     if (!pendingDelete) return;
     const song = pendingDelete;
+    flushPending();
     setSongs((prev) => prev.filter((s) => s.id !== song.id));
     setPendingDelete(null);
     setPendingUndo(song);
+    pendingRef.current = song;
 
-    undoTimer.current = setTimeout(async () => {
-      await fetch(`/api/songs/${song.id}`, { method: "DELETE" });
+    undoTimer.current = setTimeout(() => {
+      flushPending();
       setPendingUndo((prev) => (prev?.id === song.id ? null : prev));
     }, UNDO_MS);
   }
 
   function handleUndo() {
     if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = null;
+    pendingRef.current = null;
     setPendingUndo(null);
     load(query.trim());
   }

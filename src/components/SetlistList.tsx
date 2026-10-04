@@ -16,6 +16,19 @@ export default function SetlistList() {
   const [pendingDelete, setPendingDelete] = useState<SetlistSummary | null>(null);
   const [pendingUndo, setPendingUndo] = useState<SetlistSummary | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRef = useRef<SetlistSummary | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  // Ver AdminSongList: el borrado pendiente se manda ya si se borra otro o se sale de la pantalla.
+  function flushPending() {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = null;
+    const setlist = pendingRef.current;
+    pendingRef.current = null;
+    if (setlist) {
+      fetch(`/api/setlists/${setlist.id}`, { method: "DELETE", keepalive: true }).catch(() => {});
+    }
+  }
 
   async function handleShare(id: string) {
     const url = `${window.location.origin}/powers/${id}`;
@@ -29,9 +42,16 @@ export default function SetlistList() {
   }
 
   async function load() {
-    const res = await fetch("/api/setlists");
-    const data = await res.json();
-    setSetlists(data.setlists ?? []);
+    try {
+      const res = await fetch("/api/setlists");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setLoadError(false);
+      setSetlists(data.setlists ?? []);
+    } catch {
+      setLoadError(true);
+      setSetlists((prev) => prev ?? []);
+    }
   }
 
   useEffect(() => {
@@ -39,26 +59,28 @@ export default function SetlistList() {
   }, []);
 
   useEffect(() => {
-    return () => {
-      if (undoTimer.current) clearTimeout(undoTimer.current);
-    };
+    return () => flushPending();
   }, []);
 
   function handleDelete() {
     if (!pendingDelete) return;
     const setlist = pendingDelete;
+    flushPending();
     setSetlists((prev) => prev?.filter((s) => s.id !== setlist.id) ?? null);
     setPendingDelete(null);
     setPendingUndo(setlist);
+    pendingRef.current = setlist;
 
-    undoTimer.current = setTimeout(async () => {
-      await fetch(`/api/setlists/${setlist.id}`, { method: "DELETE" });
+    undoTimer.current = setTimeout(() => {
+      flushPending();
       setPendingUndo((prev) => (prev?.id === setlist.id ? null : prev));
     }, UNDO_MS);
   }
 
   function handleUndo() {
     if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = null;
+    pendingRef.current = null;
     setPendingUndo(null);
     load();
   }
@@ -77,7 +99,13 @@ export default function SetlistList() {
 
       {setlists === null && <Spinner label="Cargando powers..." />}
 
-      {setlists?.length === 0 && (
+      {loadError && (
+        <p className="py-6 text-center text-sm text-lilac-light">
+          No pudimos cargar los powers. Revisá que sigas con la sesión iniciada.
+        </p>
+      )}
+
+      {setlists?.length === 0 && !loadError && (
         <p className="py-10 text-center text-sm text-lilac-light">Todavía no armaste ningún power.</p>
       )}
 

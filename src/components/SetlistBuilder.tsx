@@ -43,7 +43,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
     const id = setTimeout(async () => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({ limit: "200" });
+        const params = new URLSearchParams({ limit: "500" });
         if (query.trim()) params.set("q", query.trim());
         if (activeTag) params.set("tag", activeTag);
         const res = await fetch(`/api/songs?${params}`);

@@ -39,7 +39,8 @@ export default function SongViewer({
     if (typeof window === "undefined") return 1;
     try {
       const saved = window.localStorage.getItem(TEXT_SIZE_KEY);
-      return saved !== null ? Number(saved) : 1;
+      const n = saved !== null ? Number(saved) : 1;
+      return Number.isInteger(n) && n >= 0 && n < PREFERRED_PX.length ? n : 1;
     } catch {
       return 1;
     }

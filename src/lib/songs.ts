@@ -32,11 +32,12 @@ export async function listSongs(params: {
   const conditions = [];
   const q = params.q?.trim();
   if (q) {
+    const likeQ = "%" + q.replace(/[\\%_]/g, "\\$&") + "%";
     // unaccent() para que "cancion" encuentre "canción", y similarity()
     // (pg_trgm) para tolerar errores de tipeo, además del substring de siempre.
     conditions.push(sql`(
-      unaccent(${songs.title}) ILIKE unaccent(${"%" + q + "%"})
-      OR unaccent(${songs.artist}) ILIKE unaccent(${"%" + q + "%"})
+      unaccent(${songs.title}) ILIKE unaccent(${likeQ})
+      OR unaccent(${songs.artist}) ILIKE unaccent(${likeQ})
       OR similarity(unaccent(${songs.title}), unaccent(${q})) > 0.25
       OR similarity(unaccent(${songs.artist}), unaccent(${q})) > 0.25
     )`);
