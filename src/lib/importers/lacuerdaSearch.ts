@@ -1,20 +1,5 @@
+import { normalizeTitle as normalize } from "@/lib/text";
 export type LaCuerdaCandidate = { artistSlug: string; songSlug: string; url: string };
-
-// Rango Unicode de los diacríticos combinables (0x0300-0x036f), construido con
-// fromCharCode para no depender de pegar el caracter literal en el código fuente.
-const DIACRITICS_RE = new RegExp(
-  `[${String.fromCharCode(0x0300)}-${String.fromCharCode(0x036f)}]`,
-  "g"
-);
-
-function normalize(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(DIACRITICS_RE, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
 
 /**
  * Busca en el buscador real de LaCuerda (acordes.lacuerda.net/busca.php?exp=).

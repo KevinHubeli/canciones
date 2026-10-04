@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ListMusic, Music, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Copy, ListMusic, Users, Music, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
 import Spinner from "@/components/Spinner";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -10,7 +10,7 @@ import UndoToast from "@/components/UndoToast";
 
 const UNDO_MS = 5000;
 
-export default function AdminSongList() {
+export default function AdminSongList({ isOwner = false }: { isOwner?: boolean }) {
   const [songs, setSongs] = useState<SongSummary[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -111,6 +111,22 @@ export default function AdminSongList() {
         >
           <ListMusic size={16} />
           Powers
+        </Link>
+        {isOwner && (
+          <Link
+            href="/admin/usuarios"
+            className="flex items-center gap-1.5 rounded-full bg-plum px-3.5 py-2 text-sm text-mist"
+          >
+            <Users size={16} />
+            Usuarios
+          </Link>
+        )}
+        <Link
+          href="/admin/duplicados"
+          className="flex items-center gap-1.5 rounded-full bg-plum px-3.5 py-2 text-sm text-mist"
+        >
+          <Copy size={16} />
+          Duplicadas
         </Link>
         <Link
           href="/admin/auto-acordes"

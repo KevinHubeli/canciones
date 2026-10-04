@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Minus, Plus, Search, X } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
-import type { RecentlyUsedSong, Setlist, SetlistSong } from "@/lib/setlists";
+import type { LastTone, RecentlyUsedSong, Setlist, SetlistSong } from "@/lib/setlists";
 import { SONG_TAGS } from "@/lib/tags";
 import { displayChord } from "@/lib/chords";
 import {
@@ -31,13 +31,20 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recentlyUsed, setRecentlyUsed] = useState<RecentlyUsedSong[]>([]);
+  // Tono con el que se usó cada canción la última vez (para arrancar con ese).
+  const [lastTones, setLastTones] = useState<Record<string, LastTone>>({});
 
   useEffect(() => {
     fetch("/api/setlists/recent-songs")
       .then((res) => res.json())
       .then((data) => setRecentlyUsed(data.songs ?? []))
       .catch(() => {});
-  }, []);
+    const exclude = initial ? `?exclude=${initial.id}` : "";
+    fetch(`/api/setlists/last-tones${exclude}`)
+      .then((res) => res.json())
+      .then((data) => setLastTones(data.tones ?? {}))
+      .catch(() => {});
+  }, [initial]);
 
   useEffect(() => {
     const id = setTimeout(async () => {
@@ -62,7 +69,7 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
 
   function addSong(song: SongSummary) {
     if (selectedIds.has(song.id)) return;
-    setEntries((prev) => [...prev, { kind: "song", song: { ...song, semitones: 0 } }]);
+    setEntries((prev) => [...prev, { kind: "song", song: { ...song, semitones: lastTones[song.id]?.semitones ?? 0 } }]);
   }
 
   function addDivider(name: DividerName) {
@@ -241,6 +248,22 @@ export default function SetlistBuilder({ initial }: { initial?: Setlist }) {
                       <span className="text-lilac-light/70">(original: {song.originalKey})</span>
                     )}
                   </div>
+                  {lastTones[song.id] && (
+                    <p className="ml-7 text-[11px] text-lilac-light/80">
+                      Última vez: {displayChord(song.originalKey, lastTones[song.id].semitones, "en")} en{" "}
+                      &quot;{lastTones[song.id].setlistTitle}&quot;
+                      {lastTones[song.id].semitones !== song.semitones && (
+                        <button
+                          onClick={() =>
+                            changeSemitones(song.id, lastTones[song.id].semitones - song.semitones)
+                          }
+                          className="ml-2 underline"
+                        >
+                          usar ese
+                        </button>
+                      )}
+                    </p>
+                  )}
                 </li>
               );
             })}

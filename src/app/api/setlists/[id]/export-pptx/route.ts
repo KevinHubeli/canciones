@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import PptxGenJS from "pptxgenjs";
 import { getSetlist } from "@/lib/setlists";
-import { getSong } from "@/lib/songs";
-import { mergeEntries } from "@/lib/dividers";
+import { buildSlides } from "@/lib/pptx-slides";
 import {
   COL_GAP_IN,
   COL_HEIGHT_IN,
@@ -12,8 +11,6 @@ import {
   MARGIN_X_IN,
   SLIDE_HEIGHT_IN,
   SLIDE_WIDTH_IN,
-  paginateSong,
-  type Run,
 } from "@/lib/pptx-layout";
 
 const UUID_RE =
@@ -34,38 +31,7 @@ export async function GET(
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
   }
 
-  const songs = await Promise.all(setlist.songs.map((s) => getSong(s.id)));
-
-  type SlideData =
-    | { kind: "divider"; name: string }
-    | SongSlideData;
-  type SongSlideData = {
-    kind: "song";
-    title: string;
-    columns: Run[][];
-    index: number;
-    count: number;
-    fontSize: number;
-  };
-  const slidesData: SlideData[] = [];
-
-  // Cada divisor es una diapositiva propia, en el lugar donde quedó entre canciones.
-  const entries = mergeEntries(
-    setlist.songs.map((s, i) => ({ semitones: s.semitones, song: songs[i] })),
-    setlist.dividers
-  );
-  for (const entry of entries) {
-    if (entry.kind === "divider") {
-      slidesData.push({ kind: "divider", name: entry.name });
-      continue;
-    }
-    const { song, semitones } = entry.song;
-    if (!song) continue;
-    const { fontSize, pages } = paginateSong(song.body, semitones);
-    for (const page of pages) {
-      slidesData.push({ kind: "song", title: song.title, fontSize, ...page });
-    }
-  }
+  const slidesData = await buildSlides(setlist);
 
   if (!slidesData.some((d) => d.kind === "song")) {
     return NextResponse.json({ error: "El power no tiene canciones." }, { status: 400 });

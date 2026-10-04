@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+
 export default function ConfirmDialog({
   open,
   title,
@@ -21,7 +23,8 @@ export default function ConfirmDialog({
 }) {
   if (!open) return null;
 
-  return (
+  // Va directo al <body>: si no, queda atrapado debajo de la barra de navegación.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
       onClick={onCancel}
@@ -49,6 +52,7 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useState } from "react";
 import { X } from "lucide-react";
 import {
@@ -26,7 +27,8 @@ export default function ChordDiagramPopover({
   const keyboard = getKeyboardDiagram(chord);
   const nothingAvailable = !guitar && !bass && !keyboard;
 
-  return (
+  // Va directo al <body>: si no, queda atrapado debajo de la barra de navegación.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
       onClick={onClose}
@@ -64,7 +66,8 @@ export default function ChordDiagramPopover({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

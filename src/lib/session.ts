@@ -89,7 +89,34 @@ export const sessionCookieOptions = {
   maxAge: SESSION_DURATION_MS / 1000,
 };
 
-export async function requireAdmin(): Promise<boolean> {
+/** Usuario de la sesión actual (con la firma y la fecha de vencimiento ya verificadas), o null. */
+async function readSessionUsername(token: string | undefined | null): Promise<string | null> {
+  if (!(await verifySessionToken(token))) return null;
+  try {
+    const payloadB64 = token!.split(".")[0];
+    const payload = JSON.parse(new TextDecoder().decode(fromBase64Url(payloadB64)));
+    return typeof payload.u === "string" ? payload.u : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getSessionUsername(): Promise<string | null> {
   const store = await cookies();
-  return verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  return readSessionUsername(store.get(SESSION_COOKIE)?.value);
+}
+
+/** El dueño es el usuario de las variables de entorno: el único que administra a los demás. */
+export async function isOwner(): Promise<boolean> {
+  const username = await getSessionUsername();
+  return username !== null && username === process.env.ADMIN_USER;
+}
+
+export async function requireAdmin(): Promise<boolean> {
+  const username = await getSessionUsername();
+  if (!username) return false;
+  if (username === process.env.ADMIN_USER) return true;
+  // Un usuario borrado pierde el acceso aunque su cookie siga vigente.
+  const { userExists } = await import("@/lib/users");
+  return userExists(username);
 }

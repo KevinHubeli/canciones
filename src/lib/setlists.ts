@@ -162,3 +162,25 @@ export async function getRecentlyUsedSongs(limit = 20): Promise<RecentlyUsedSong
     .sort((a, b) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime())
     .slice(0, limit);
 }
+
+export type LastTone = { semitones: number; setlistTitle: string };
+
+/**
+ * Para cada canción de los últimos powers, cuántos semitonos se la subió o
+ * bajó la última vez que se usó (así al armar uno nuevo se arranca con el
+ * mismo tono). `excludeId` deja afuera el power que se está editando.
+ */
+export async function getLastTones(excludeId?: string): Promise<Record<string, LastTone>> {
+  const rows = await getDb().select().from(setlists).orderBy(desc(setlists.updatedAt)).limit(30);
+  const result: Record<string, LastTone> = {};
+  for (const row of rows) {
+    if (row.id === excludeId) continue;
+    const transpose = transposeMap(row);
+    for (const songId of row.songIds) {
+      if (!(songId in result)) {
+        result[songId] = { semitones: transpose[songId] ?? 0, setlistTitle: row.title };
+      }
+    }
+  }
+  return result;
+}

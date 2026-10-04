@@ -43,6 +43,13 @@
       "when": 1791131652736,
       "tag": "0005_old_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791133679245,
+      "tag": "0006_redundant_magma",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { songs, type SongRow } from "@/db/schema";
 import type { Song, SongSummary } from "@/lib/types";
 import { NO_CHORDS_FILTER } from "@/lib/tags";
+import { normalizeTitle } from "@/lib/text";
 
 function toSummary(row: SongRow): SongSummary {
   return {
@@ -137,4 +138,37 @@ export async function updateSong(
 export async function deleteSong(id: string): Promise<boolean> {
   const [row] = await getDb().delete(songs).where(eq(songs.id, id)).returning();
   return Boolean(row);
+}
+
+export type DuplicateSong = SongSummary & { chordCount: number; bodyLength: number };
+export type DuplicateGroup = { title: string; songs: DuplicateSong[] };
+
+/** Grupos de canciones con el mismo título (sin importar tildes, mayúsculas ni signos). */
+export async function findDuplicateGroups(): Promise<DuplicateGroup[]> {
+  const rows = await getDb().select().from(songs);
+  const groups = new Map<string, SongRow[]>();
+  for (const row of rows) {
+    const key = normalizeTitle(row.title);
+    if (!key) continue;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  return [...groups.values()]
+    .filter((g) => g.length > 1)
+    .map((g) => ({
+      title: g[0].title,
+      songs: g.map((row) => ({
+        ...toSummary(row),
+        chordCount: (row.body.match(/\[[^\]]+\]/g) ?? []).length,
+        bodyLength: row.body.length,
+      })),
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/** Una canción ya cargada con el mismo título (normalizado), si existe. */
+export async function findSongWithSameTitle(title: string): Promise<{ id: string; title: string } | null> {
+  const key = normalizeTitle(title);
+  if (!key) return null;
+  const rows = await getDb().select({ id: songs.id, title: songs.title }).from(songs);
+  return rows.find((r) => normalizeTitle(r.title) === key) ?? null;
 }

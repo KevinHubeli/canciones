@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/session";
+import { isOwner, requireAdmin } from "@/lib/session";
 import AdminSongList from "@/components/AdminSongList";
 import LogoutButton from "@/components/LogoutButton";
 
@@ -19,7 +19,7 @@ export default async function AdminPage() {
         <LogoutButton />
       </div>
 
-      <AdminSongList />
+      <AdminSongList isOwner={await isOwner()} />
     </main>
   );
 }

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Download, Play } from "lucide-react";
+import { Download, Eye, Play } from "lucide-react";
 import { getSetlist } from "@/lib/setlists";
 import { displayChord } from "@/lib/chords";
 import { mergeEntries } from "@/lib/dividers";
@@ -27,13 +27,23 @@ export default async function PublicPowerPage({
           <h1 className="font-display text-2xl text-mist">{setlist.title}</h1>
         </div>
         {setlist.songs.length > 0 && (
-          <a
-            href={`/api/setlists/${setlist.id}/export-pptx`}
-            aria-label="Exportar a PowerPoint"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-plum text-mist"
-          >
-            <Download size={18} />
-          </a>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href={`/powers/${setlist.id}/vista-previa`}
+              aria-label="Vista previa del PowerPoint"
+              className="flex h-10 items-center gap-1.5 rounded-full bg-plum px-3.5 text-sm text-mist"
+            >
+              <Eye size={16} />
+              Vista previa
+            </Link>
+            <a
+              href={`/api/setlists/${setlist.id}/export-pptx`}
+              aria-label="Exportar a PowerPoint"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-plum text-mist"
+            >
+              <Download size={18} />
+            </a>
+          </div>
         )}
       </div>
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSong, listSongs } from "@/lib/songs";
+import { createSong, findSongWithSameTitle, listSongs } from "@/lib/songs";
 import { requireAdmin } from "@/lib/session";
 import { normalizePlainChords } from "@/lib/chords";
 import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     category?: unknown;
     tags?: unknown;
     body?: unknown;
+    force?: unknown;
   };
   try {
     body = await request.json();
@@ -60,6 +61,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Evita cargar dos veces la misma canción; con force: true se guarda igual.
+    if (body.force !== true) {
+      const existing = await findSongWithSameTitle(body.title);
+      if (existing) {
+        return NextResponse.json(
+          { error: `Ya hay una canción con el título "${existing.title}".`, duplicateOf: existing },
+          { status: 409 }
+        );
+      }
+    }
     const song = await createSong({
       title: body.title.trim(),
       artist: typeof body.artist === "string" ? body.artist.trim() : "",

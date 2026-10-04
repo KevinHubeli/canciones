@@ -50,3 +50,14 @@ export const setlists = pgTable("setlists", {
 });
 
 export type SetlistRow = typeof setlists.$inferSelect;
+
+// Usuarios que pueden entrar al admin además del dueño (el de ADMIN_USER / ADMIN_PASSWORD).
+export const adminUsers = pgTable("admin_users", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  username: text("username").notNull().unique(),
+  // Formato: scrypt:<salt hex>:<hash hex>
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type AdminUserRow = typeof adminUsers.$inferSelect;

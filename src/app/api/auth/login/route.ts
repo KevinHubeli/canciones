@@ -5,6 +5,7 @@ import {
   createSessionToken,
   sessionCookieOptions,
 } from "@/lib/session";
+import { verifyUser } from "@/lib/users";
 import { clearAttempts, clientIp, isRateLimited, registerFailedAttempt } from "@/lib/rateLimit";
 
 // Comparación en tiempo constante (se comparan los hashes, que tienen siempre el mismo largo).
@@ -12,6 +13,18 @@ function safeEqual(a: string, b: string): boolean {
   const ha = createHash("sha256").update(a).digest();
   const hb = createHash("sha256").update(b).digest();
   return timingSafeEqual(ha, hb);
+}
+
+/** El dueño (variables de entorno) o un usuario de la base. Siempre se evalúan los dos caminos. */
+async function isValidLogin(
+  username: string,
+  password: string,
+  adminUser: string,
+  adminPassword: string
+): Promise<boolean> {
+  const ownerOk = safeEqual(username, adminUser) && safeEqual(password, adminPassword);
+  const userOk = await verifyUser(username, password);
+  return ownerOk || userOk;
 }
 
 export async function POST(request: NextRequest) {
@@ -44,8 +57,7 @@ export async function POST(request: NextRequest) {
   if (
     typeof username !== "string" ||
     typeof password !== "string" ||
-    // Se evalúan las dos para no revelar cuál estaba mal por el tiempo de respuesta.
-    !(safeEqual(username.trim(), adminUser) && safeEqual(password, adminPassword))
+    !(await isValidLogin(username.trim(), password, adminUser, adminPassword))
   ) {
     registerFailedAttempt(ip);
     return NextResponse.json(
@@ -55,7 +67,9 @@ export async function POST(request: NextRequest) {
   }
 
   clearAttempts(ip);
-  const token = await createSessionToken(adminUser);
+  // La sesión queda a nombre de quien entró: el dueño o un usuario de la base.
+  const sessionName = safeEqual(username.trim(), adminUser) ? adminUser : username.trim().toLowerCase();
+  const token = await createSessionToken(sessionName);
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
   return response;

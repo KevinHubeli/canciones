@@ -23,6 +23,8 @@ export default function SongForm({ initial }: { initial?: Song }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  // Ya hay otra canción con este título: se avisa y se deja guardar igual si es a propósito.
+  const [duplicate, setDuplicate] = useState<{ id: string; title: string } | null>(null);
 
   async function handleImport() {
     if (!importUrl.trim()) return;
@@ -51,17 +53,22 @@ export default function SongForm({ initial }: { initial?: Song }) {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent, force = false) {
     e.preventDefault();
     setSaving(true);
     setError(null);
+    setDuplicate(null);
     try {
       const res = await fetch(initial ? `/api/songs/${initial.id}` : "/api/songs", {
         method: initial ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, artist, originalKey, category, tags, body }),
+        body: JSON.stringify({ title, artist, originalKey, category, tags, body, force }),
       });
       const data = await res.json();
+      if (res.status === 409 && data.duplicateOf) {
+        setDuplicate(data.duplicateOf);
+        return;
+      }
       if (!res.ok) {
         setError(data.error ?? "No se pudo guardar la canción.");
         return;
@@ -211,6 +218,26 @@ export default function SongForm({ initial }: { initial?: Song }) {
       )}
 
       {error && <p className="rounded-xl bg-accent/20 px-3 py-2 text-sm text-mist">{error}</p>}
+
+      {duplicate && (
+        <div className="rounded-xl bg-accent/20 px-3 py-3 text-sm text-mist">
+          <p>
+            Ya existe una canción llamada &quot;{duplicate.title}&quot;. ¿Querés cargarla igual?
+          </p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            <a href={`/admin/${duplicate.id}/editar`} className="underline">
+              Abrir la que ya existe
+            </a>
+            <button
+              type="button"
+              onClick={(e) => handleSubmit(e, true)}
+              className="font-semibold underline"
+            >
+              Guardar igual
+            </button>
+          </div>
+        </div>
+      )}
 
       <button
         type="submit"

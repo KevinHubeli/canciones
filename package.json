@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "tsx pptx-layout.test.ts && tsx dividers.test.ts",
+    "test:e2e": "node e2e/http-test.mjs && node e2e/http-test2.mjs && node e2e/ui-test.mjs && node e2e/ui2-test.mjs && node e2e/ui3-test.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
