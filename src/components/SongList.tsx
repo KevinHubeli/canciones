@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
 import Spinner from "@/components/Spinner";
 import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
-import { getRecentSongs, type RecentSong } from "@/lib/recentSongs";
+import { RECENT_KEY, parseRecentSongs } from "@/lib/recentSongs";
+import { useStoredString } from "@/lib/useStoredString";
 
 const PAGE_SIZE = 24;
 const ALL_FILTERS: string[] = [...SONG_TAGS, NO_CHORDS_FILTER];
@@ -19,15 +20,12 @@ export default function SongList() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recent, setRecent] = useState<RecentSong[]>([]);
+  const recentRaw = useStoredString(RECENT_KEY);
+  const recent = useMemo(() => parseRecentSongs(recentRaw), [recentRaw]);
   const loadingRef = useRef(false);
   // Número de la última búsqueda: una respuesta vieja (de lo que se tipeó antes) se descarta.
   const searchIdRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setRecent(getRecentSongs());
-  }, []);
 
   const load = useCallback(async (q: string, tags: string[], offset: number) => {
     // "Cargar más" no se pisa a sí mismo, pero una búsqueda nueva siempre arranca.
@@ -67,7 +65,6 @@ export default function SongList() {
   useEffect(() => {
     const id = setTimeout(() => load(query.trim(), activeTags, 0), 300);
     return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, activeTags, load]);
 
   useEffect(() => {

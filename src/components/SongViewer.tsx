@@ -14,6 +14,7 @@ import ChordLine from "@/components/ChordLine";
 import FabMenu from "@/components/FabMenu";
 import ChordDiagramPopover from "@/components/ChordDiagramPopover";
 import { addRecentSong } from "@/lib/recentSongs";
+import { useStoredString, writeStored } from "@/lib/useStoredString";
 
 const TEXT_SIZE_KEY = "cancionero:textSizeIndex";
 const AUTOSCROLL_PX_PER_TICK = 2;
@@ -35,16 +36,11 @@ export default function SongViewer({
   const router = useRouter();
   const [semitones, setSemitones] = useState(initialSemitones ?? 0);
   const [notation, setNotation] = useState<ChordNotation>("en");
-  const [textSizeIndex, setTextSizeIndex] = useState(() => {
-    if (typeof window === "undefined") return 1;
-    try {
-      const saved = window.localStorage.getItem(TEXT_SIZE_KEY);
-      const n = saved !== null ? Number(saved) : 1;
-      return Number.isInteger(n) && n >= 0 && n < PREFERRED_PX.length ? n : 1;
-    } catch {
-      return 1;
-    }
-  });
+  // El tamaño de texto elegido se guarda en el navegador (ver useStoredString).
+  const storedSize = Number(useStoredString(TEXT_SIZE_KEY));
+  const textSizeIndex =
+    Number.isInteger(storedSize) && storedSize >= 0 && storedSize < PREFERRED_PX.length ? storedSize : 1;
+  const setTextSizeIndex = (index: number) => writeStored(TEXT_SIZE_KEY, String(index));
   const [menuOpen, setMenuOpen] = useState(false);
   const [autoScroll, setAutoScroll] = useState(false);
   const [diagramMode, setDiagramMode] = useState(false);
@@ -128,28 +124,19 @@ export default function SongViewer({
   }, [fontSizePx, readingChars]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(TEXT_SIZE_KEY, String(textSizeIndex));
-    } catch {
-      // no pasa nada si no se puede guardar la preferencia
-    }
-  }, [textSizeIndex]);
-
-  useEffect(() => {
     addRecentSong({ id: song.id, title: song.title, artist: song.artist });
   }, [song.id, song.title, song.artist]);
 
-  useEffect(() => {
-    if (isWide) setAutoScroll(false);
-  }, [isWide]);
+  // El desfile automático solo existe en vertical: en columnas queda apagado.
+  const autoScrollActive = autoScroll && !isWide;
 
   useEffect(() => {
-    if (!autoScroll) return;
+    if (!autoScrollActive) return;
     const el = scrollRef.current;
     if (!el) return;
     const id = setInterval(() => el.scrollBy({ top: AUTOSCROLL_PX_PER_TICK }), 40);
     return () => clearInterval(id);
-  }, [autoScroll]);
+  }, [autoScrollActive]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -257,7 +244,7 @@ export default function SongViewer({
       <FabMenu
         menuOpen={menuOpen}
         onToggleMenu={() => setMenuOpen((v) => !v)}
-        autoScroll={autoScroll}
+        autoScroll={autoScrollActive}
         onToggleAutoScroll={() => setAutoScroll((v) => !v)}
         diagramMode={diagramMode}
         onToggleDiagramMode={() => setDiagramMode((v) => !v)}

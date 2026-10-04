@@ -55,7 +55,22 @@ export default function SetlistList() {
   }
 
   useEffect(() => {
-    load();
+    let cancelled = false;
+    fetch("/api/setlists")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((data) => {
+        if (cancelled) return;
+        setLoadError(false);
+        setSetlists(data.setlists ?? []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoadError(true);
+        setSetlists([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

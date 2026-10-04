@@ -89,5 +89,16 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
   check("acordes con bajo, sus y paréntesis se reconocen", (slash.match(/\[/g) ?? []).length === 3, slash);
 }
 
+// ---- Marcas de repetición ----
+{
+  const n = normalizePlainChords("///Am ///\nDa un paso al frente\n(x4) G\nX2\n//");
+  const lines = n.split("\n");
+  check("///Am /// => acorde entre corchetes", lines[0] === "///[Am] ///", lines[0]);
+  check("no se mezcla con la letra de abajo", lines[1] === "Da un paso al frente");
+  check("(x4) G", lines[2] === "(x4) [G]", lines[2]);
+  check("marcas solas no son acordes", lines[3] === "X2" && lines[4] === "//");
+  check("transpone igual", parseSongLine(lines[0]).chords.map((c) => displayChord(c.chord, 2, "en")).join() === "Bm");
+}
+
 console.log(`\nRESULTADO: ${passed} OK, ${failures} FAIL`);
 process.exit(failures > 0 ? 1 : 0);

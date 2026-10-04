@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   SESSION_COOKIE,
@@ -5,6 +6,13 @@ import {
   sessionCookieOptions,
 } from "@/lib/session";
 import { clearAttempts, clientIp, isRateLimited, registerFailedAttempt } from "@/lib/rateLimit";
+
+// Comparación en tiempo constante (se comparan los hashes, que tienen siempre el mismo largo).
+function safeEqual(a: string, b: string): boolean {
+  const ha = createHash("sha256").update(a).digest();
+  const hb = createHash("sha256").update(b).digest();
+  return timingSafeEqual(ha, hb);
+}
 
 export async function POST(request: NextRequest) {
   const ip = clientIp(request);
@@ -36,8 +44,8 @@ export async function POST(request: NextRequest) {
   if (
     typeof username !== "string" ||
     typeof password !== "string" ||
-    username.trim() !== adminUser ||
-    password !== adminPassword
+    // Se evalúan las dos para no revelar cuál estaba mal por el tiempo de respuesta.
+    !(safeEqual(username.trim(), adminUser) && safeEqual(password, adminPassword))
   ) {
     registerFailedAttempt(ip);
     return NextResponse.json(

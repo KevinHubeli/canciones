@@ -22,7 +22,17 @@ export function isRateLimited(ip: string): boolean {
   return recent.length >= MAX_ATTEMPTS;
 }
 
+// Evita que el mapa crezca sin límite con IPs que no vuelven más.
+function pruneExpired(): void {
+  if (attempts.size < 500) return;
+  const now = Date.now();
+  for (const [ip, times] of attempts) {
+    if (times.every((t) => now - t >= WINDOW_MS)) attempts.delete(ip);
+  }
+}
+
 export function registerFailedAttempt(ip: string): void {
+  pruneExpired();
   const recent = (attempts.get(ip) ?? []).filter(
     (t) => Date.now() - t < WINDOW_MS
   );

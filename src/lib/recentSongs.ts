@@ -1,13 +1,15 @@
-const KEY = "cancionero:recientes";
+import { readStored, writeStored } from "@/lib/useStoredString";
+
+export const RECENT_KEY = "cancionero:recientes";
 const MAX = 8;
 
 export type RecentSong = { id: string; title: string; artist: string };
 
-export function getRecentSongs(): RecentSong[] {
-  if (typeof window === "undefined") return [];
+export function parseRecentSongs(raw: string | null): RecentSong[] {
+  if (!raw) return [];
   try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -15,11 +17,6 @@ export function getRecentSongs(): RecentSong[] {
 
 export function addRecentSong(song: RecentSong) {
   if (typeof window === "undefined") return;
-  try {
-    const prev = getRecentSongs().filter((s) => s.id !== song.id);
-    const next = [song, ...prev].slice(0, MAX);
-    localStorage.setItem(KEY, JSON.stringify(next));
-  } catch {
-    // no pasa nada si no se puede guardar la preferencia
-  }
+  const prev = parseRecentSongs(readStored(RECENT_KEY)).filter((s) => s.id !== song.id);
+  writeStored(RECENT_KEY, JSON.stringify([song, ...prev].slice(0, MAX)));
 }

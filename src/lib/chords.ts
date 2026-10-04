@@ -187,9 +187,41 @@ export function wrapLine<T extends { index: number; label: string }>(
 const PLAIN_CHORD_RE =
   /^(?:[A-G]|Do|Re|Mi|Fa|Sol|La|Si)(#|b)?(maj|min|m|M|dim|aug|sus|add)?\d{0,2}((sus|add|maj)?\d{1,2}|[#b]\d{1,2}|\([^)]*\))*(\/(?:[A-G]|Do|Re|Mi|Fa|Sol|La|Si)(#|b)?)?$/;
 
+// Marcas de repetición que suelen acompañar a los acordes: "///Am ///", "|Am|", "(x4)".
+const REPEAT_MARK_RE = /^(?:[\/|:]+|\(?x\d+\)?)$/i;
+
+/** Separa las barras/pipes pegados al acorde: "///Am" => { pre: "///", core: "Am", post: "" }. */
+function splitDecoration(token: string): { pre: string; core: string; post: string } {
+  const m = token.match(/^([\/|:]*)(.*?)([\/|:]*)$/);
+  return { pre: m?.[1] ?? "", core: m?.[2] ?? token, post: m?.[3] ?? "" };
+}
+
 function isPlainChordLine(line: string): boolean {
   const tokens = line.trim().split(/\s+/);
-  return tokens[0] !== "" && tokens.every((t) => PLAIN_CHORD_RE.test(t));
+  if (tokens[0] === "") return false;
+  let chords = 0;
+  for (const t of tokens) {
+    if (PLAIN_CHORD_RE.test(t)) {
+      chords++;
+      continue;
+    }
+    if (REPEAT_MARK_RE.test(t)) continue;
+    const { core } = splitDecoration(t);
+    if (core && PLAIN_CHORD_RE.test(core)) {
+      chords++;
+      continue;
+    }
+    return false;
+  }
+  return chords > 0;
+}
+
+/** ¿La línea de acordes trae marcas de repetición pegadas? (ej. "///Am ///") */
+function hasDecoration(line: string): boolean {
+  return line
+    .trim()
+    .split(/\s+/)
+    .some((t) => !PLAIN_CHORD_RE.test(t));
 }
 
 /**
@@ -205,6 +237,23 @@ export function normalizePlainChordLines(body: string): string[] {
     const line = lines[i];
     if (!isPlainChordLine(line)) {
       out.push(line);
+      continue;
+    }
+    if (hasDecoration(line)) {
+      // Con marcas de repetición ("///Am ///") se deja la línea como está, solo
+      // que con los acordes entre corchetes, sin mezclarla con la letra de abajo.
+      out.push(
+        line
+          .trim()
+          .split(/\s+/)
+          .map((t) => {
+            if (PLAIN_CHORD_RE.test(t)) return `[${t}]`;
+            if (REPEAT_MARK_RE.test(t)) return t;
+            const { pre, core, post } = splitDecoration(t);
+            return `${pre}[${core}]${post}`;
+          })
+          .join(" ")
+      );
       continue;
     }
     const tokens = [...line.matchAll(/\S+/g)].map((m) => ({ chord: m[0], index: m.index ?? 0 }));
