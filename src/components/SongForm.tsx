@@ -1,14 +1,15 @@
 "use client";
 
 import { normalizePlainChordLines } from "@/lib/chords";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Song } from "@/lib/types";
 import ChordLine from "@/components/ChordLine";
 import { SONG_TAGS } from "@/lib/tags";
+import { findJunkLines, removeJunkLines } from "@/lib/junk";
 
 const inputClass =
-  "rounded-2xl border border-plum bg-night/50 px-4 py-3 text-mist placeholder:text-lilac-light/70 focus:outline-none focus:ring-2 focus:ring-accent";
+  "w-full min-w-0 rounded-2xl border border-plum bg-night/50 px-4 py-3 text-mist placeholder:text-lilac-light/70 focus:outline-none focus:ring-2 focus:ring-accent";
 
 export default function SongForm({ initial }: { initial?: Song }) {
   const router = useRouter();
@@ -24,6 +25,9 @@ export default function SongForm({ initial }: { initial?: Song }) {
   const [error, setError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   // Ya hay otra canción con este título: se avisa y se deja guardar igual si es a propósito.
+  // Líneas que parecen texto de la página de donde se copió (menús, botones, links).
+  const junk = useMemo(() => findJunkLines(body), [body]);
+  const [junkDismissed, setJunkDismissed] = useState(false);
   const [duplicate, setDuplicate] = useState<{ id: string; title: string } | null>(null);
 
   async function handleImport() {
@@ -45,6 +49,7 @@ export default function SongForm({ initial }: { initial?: Song }) {
       setArtist(data.artist ?? "");
       setOriginalKey(data.originalKey ?? "C");
       setBody(data.body ?? "");
+      setJunkDismissed(false);
       setShowImport(false);
     } catch {
       setError("No pudimos importar esa canción.");
@@ -197,6 +202,40 @@ export default function SongForm({ initial }: { initial?: Song }) {
         />
       </Field>
 
+      {junk.length > 0 && !junkDismissed && (
+        <div className="rounded-xl border border-accent/60 bg-accent/10 px-3 py-3 text-sm text-mist">
+          <p className="font-semibold">
+            {junk.length === 1
+              ? "Hay 1 línea que parece de la página web, no de la canción:"
+              : `Hay ${junk.length} líneas que parecen de la página web, no de la canción:`}
+          </p>
+          <ul className="mt-1.5 list-inside list-disc text-xs text-lilac-light">
+            {junk.slice(0, 6).map((line) => (
+              <li key={line.index} className="truncate">
+                {line.text}
+              </li>
+            ))}
+            {junk.length > 6 && <li>y {junk.length - 6} más</li>}
+          </ul>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setBody((prev) => removeJunkLines(prev))}
+              className="rounded-full bg-accent px-4 py-1.5 text-xs font-semibold text-night"
+            >
+              Quitar {junk.length === 1 ? "esa línea" : "esas líneas"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setJunkDismissed(true)}
+              className="text-xs text-lilac-light underline"
+            >
+              Dejar así
+            </button>
+          </div>
+        </div>
+      )}
+
       {body.trim() && (
         <div>
           <span className="mb-2 block text-xs uppercase tracking-wide text-lilac-light">
@@ -260,7 +299,7 @@ function Field({
   className?: string;
 }) {
   return (
-    <label className={`flex flex-col gap-1.5 text-sm text-lilac-light ${className ?? ""}`}>
+    <label className={`flex min-w-0 flex-col gap-1.5 text-sm text-lilac-light ${className ?? ""}`}>
       {label}
       {children}
     </label>

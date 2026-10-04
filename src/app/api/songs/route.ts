@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSong, findSongWithSameTitle, listSongs } from "@/lib/songs";
 import { requireAdmin } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 import { normalizePlainChords } from "@/lib/chords";
 import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
 
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
         : [],
       body: normalizePlainChords(body.body),
     });
+    await logAudit({ action: "create", entity: "song", entityId: song.id, title: song.title });
     return NextResponse.json({ song });
   } catch (err) {
     console.error("POST /api/songs failed:", err);

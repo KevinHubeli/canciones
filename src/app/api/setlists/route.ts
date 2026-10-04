@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
 import { createSetlist, listSetlists } from "@/lib/setlists";
+import { logAudit } from "@/lib/audit";
 import { sanitizeDividers } from "@/lib/dividers";
 
 const UUID_RE =
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const setlist = await createSetlist({ title: body.title.trim(), songIds, transpose, dividers });
+    await logAudit({ action: "create", entity: "setlist", entityId: setlist.id, title: setlist.title });
     return NextResponse.json({ setlist });
   } catch (err) {
     console.error("POST /api/setlists failed:", err);

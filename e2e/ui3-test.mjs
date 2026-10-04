@@ -30,7 +30,7 @@ ok("chip Duplicadas visible", await page.locator('a:has-text("Duplicadas")').cou
 await page.click('a:has-text("Duplicadas")');
 await page.waitForURL("**/admin/duplicados");
 await page.waitForSelector("text=Canciones duplicadas");
-await page.waitForTimeout(1200);
+await page.waitForSelector("text=/Recomendada|No hay canciones con el mismo título/", { timeout: 20000 }).catch(() => {});
 const dupText = await page.locator("main").innerText();
 ok("la pantalla de duplicadas muestra grupos con 'Recomendada'", /Recomendada/.test(dupText) || /No hay canciones con el mismo título/.test(dupText));
 await page.screenshot({ path: "e2e/out/ui-dups.png", fullPage: true });
@@ -46,7 +46,7 @@ ok("se crea el usuario desde la pantalla", true);
 await page.screenshot({ path: "e2e/out/ui-users.png", fullPage: true });
 await page.click('button[aria-label="Eliminar a zz_ui_user"]');
 await page.click('button:has-text("Eliminar"):visible >> nth=-1');
-await page.waitForTimeout(800);
+await page.waitForSelector("text=zz_ui_user", { state: "detached", timeout: 10000 }).catch(() => {});
 ok("se elimina el usuario", (await page.locator("text=zz_ui_user").count()) === 0);
 
 // --- aviso de título repetido al crear

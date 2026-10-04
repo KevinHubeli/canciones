@@ -12,6 +12,8 @@ import {
   MARGIN_X_IN,
   SLIDE_HEIGHT_IN,
   SLIDE_WIDTH_IN,
+  TEXT_INSET_X_IN,
+  TEXT_INSET_Y_IN,
 } from "@/lib/pptx-layout";
 
 const UUID_RE =
@@ -84,6 +86,8 @@ function SlideView({ slide }: { slide: Slide }) {
                 top: pctY(COL_TOP_IN),
                 width: pctX(COL_WIDTH_IN),
                 height: pctY(COL_HEIGHT_IN),
+                // Los mismos márgenes internos que el cuadro de texto de PowerPoint.
+                padding: `${pctX(TEXT_INSET_Y_IN)} ${pctX(TEXT_INSET_X_IN)}`,
                 fontSize: cqw(slide.fontSize),
                 fontFamily: '"Courier New", Courier, monospace',
                 lineHeight: "1.2",

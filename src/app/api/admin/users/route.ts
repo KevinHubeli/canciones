@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logAudit } from "@/lib/audit";
 import { isOwner } from "@/lib/session";
 import { createUser, listUsers, normalizeUsername, validateNewUser } from "@/lib/users";
 
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Ya existe un usuario con ese nombre." }, { status: 409 });
     }
+    await logAudit({ action: "create", entity: "user", entityId: user.id, title: user.username });
     return NextResponse.json({ user });
   } catch (err) {
     console.error("POST /api/admin/users failed:", err);

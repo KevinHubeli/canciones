@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Pencil, Plus, Share2, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Copy, Pencil, Plus, Share2, Trash2 } from "lucide-react";
 import type { SetlistSummary } from "@/lib/setlists";
 import Spinner from "@/components/Spinner";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -18,6 +19,24 @@ export default function SetlistList() {
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<SetlistSummary | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const router = useRouter();
+  const [copyingId, setCopyingId] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState(false);
+
+  // Copia el power (canciones, tonos y divisores) y abre la copia para editarla.
+  async function handleCopy(id: string) {
+    setCopyingId(id);
+    setCopyError(false);
+    try {
+      const res = await fetch(`/api/setlists/${id}/duplicate`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      router.push(`/admin/powers/${data.setlist.id}/editar`);
+    } catch {
+      setCopyError(true);
+      setCopyingId(null);
+    }
+  }
 
   // Ver AdminSongList: el borrado pendiente se manda ya si se borra otro o se sale de la pantalla.
   function flushPending() {
@@ -112,6 +131,12 @@ export default function SetlistList() {
         </Link>
       </div>
 
+      {copyError && (
+        <p className="mb-3 rounded-xl bg-accent/20 px-3 py-2 text-sm text-mist">
+          No se pudo copiar el power.
+        </p>
+      )}
+
       {setlists === null && <Spinner label="Cargando powers..." />}
 
       {loadError && (
@@ -142,6 +167,14 @@ export default function SetlistList() {
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-plum text-mist"
                 >
                   {copiedId === s.id ? <Check size={16} /> : <Share2 size={16} />}
+                </button>
+                <button
+                  onClick={() => handleCopy(s.id)}
+                  disabled={copyingId !== null}
+                  aria-label="Copiar este power para armar uno nuevo"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-plum text-mist disabled:opacity-50"
+                >
+                  <Copy size={16} />
                 </button>
                 <Link
                   href={`/admin/powers/${s.id}/editar`}

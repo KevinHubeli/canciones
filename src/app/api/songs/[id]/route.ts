@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteSong, getSong, updateSong } from "@/lib/songs";
 import { requireAdmin } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 import { normalizePlainChords } from "@/lib/chords";
 import { SONG_TAGS } from "@/lib/tags";
 
@@ -71,6 +72,7 @@ export async function PATCH(
     if (!song) {
       return NextResponse.json({ error: "No encontramos esa canción." }, { status: 404 });
     }
+    await logAudit({ action: "update", entity: "song", entityId: song.id, title: song.title });
     return NextResponse.json({ song });
   } catch (err) {
     console.error("PATCH /api/songs/[id] failed:", err);
@@ -91,10 +93,12 @@ export async function DELETE(
   }
 
   try {
+    const existing = await getSong(id);
     const deleted = await deleteSong(id);
     if (!deleted) {
       return NextResponse.json({ error: "No encontramos esa canción." }, { status: 404 });
     }
+    await logAudit({ action: "delete", entity: "song", entityId: id, title: existing?.title ?? "(sin título)" });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("DELETE /api/songs/[id] failed:", err);

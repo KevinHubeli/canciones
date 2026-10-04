@@ -50,6 +50,13 @@
       "when": 1791133679245,
       "tag": "0006_redundant_magma",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791141505157,
+      "tag": "0007_glossy_ma_gnuci",
+      "breakpoints": true
     }
   ]
 }

@@ -85,7 +85,8 @@ export async function createUser(username: string, password: string): Promise<Ad
   return row ? { id: row.id, username: row.username, createdAt: row.createdAt.toISOString() } : null;
 }
 
-export async function deleteUser(id: string): Promise<boolean> {
+/** Devuelve el nombre del usuario borrado, o null si no existía. */
+export async function deleteUser(id: string): Promise<string | null> {
   const [row] = await getDb().delete(adminUsers).where(eq(adminUsers.id, id)).returning();
-  return Boolean(row);
+  return row ? row.username : null;
 }

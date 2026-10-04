@@ -61,3 +61,22 @@ export const adminUsers = pgTable("admin_users", {
 });
 
 export type AdminUserRow = typeof adminUsers.$inferSelect;
+
+// Historial de quién cambió qué (canciones, powers y usuarios).
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    username: text("username").notNull(),
+    // create | update | delete | duplicate | chords
+    action: text("action").notNull(),
+    // song | setlist | user
+    entity: text("entity").notNull(),
+    entityId: text("entity_id"),
+    entityTitle: text("entity_title").notNull(),
+  },
+  (table) => [index("audit_log_at_idx").on(table.at)]
+);
+
+export type AuditRow = typeof auditLog.$inferSelect;

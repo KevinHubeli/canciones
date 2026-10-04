@@ -192,11 +192,11 @@ const PLAIN_CHORD_RE =
   /^(?:[A-G]|Do|Re|Mi|Fa|Sol|La|Si)(#|b)?(maj|min|m|M|dim|aug|sus|add)?\d{0,2}((sus|add|maj)?\d{1,2}|[#b]\d{1,2}|\([^)]*\))*(\/(?:[A-G]|Do|Re|Mi|Fa|Sol|La|Si)(#|b)?)?$/;
 
 // Marcas de repetición que suelen acompañar a los acordes: "///Am ///", "|Am|", "(x4)".
-const REPEAT_MARK_RE = /^(?:[\/|:]+|\(?x\d+\)?)$/i;
+const REPEAT_MARK_RE = /^(?:[\/|:\-–—]+|\(?x\d+\)?)$/i;
 
 /** Separa las barras/pipes pegados al acorde: "///Am" => { pre: "///", core: "Am", post: "" }. */
 function splitDecoration(token: string): { pre: string; core: string; post: string } {
-  const m = token.match(/^([\/|:]*)(.*?)([\/|:]*)$/);
+  const m = token.match(/^([\/|:\-–—]*)(.*?)([\/|:\-–—]*)$/);
   return { pre: m?.[1] ?? "", core: m?.[2] ?? token, post: m?.[3] ?? "" };
 }
 
@@ -225,7 +225,8 @@ function hasDecoration(line: string): boolean {
   return line
     .trim()
     .split(/\s+/)
-    .some((t) => !PLAIN_CHORD_RE.test(t));
+    // Un guion suelto entre acordes ("Am - F") no cuenta: se trata como una línea común.
+    .some((t) => !PLAIN_CHORD_RE.test(t) && !/^[-–—]+$/.test(t));
 }
 
 // Líneas tipo "Intro: Am - F - C - G" o "INTRO(4x): Bm - A6 - F#m7 - G": una
@@ -326,7 +327,9 @@ export function normalizePlainChordLines(body: string): string[] {
       );
       continue;
     }
-    const tokens = [...line.matchAll(/\S+/g)].map((m) => ({ chord: m[0], index: m.index ?? 0 }));
+    const tokens = [...line.matchAll(/\S+/g)]
+      .map((m) => ({ chord: m[0], index: m.index ?? 0 }))
+      .filter((t) => PLAIN_CHORD_RE.test(t.chord));
     const next = lines[i + 1];
     if (next === undefined || !next.trim() || isPlainChordLine(next)) {
       out.push(tokens.map((t) => `[${t.chord}]`).join(" "));

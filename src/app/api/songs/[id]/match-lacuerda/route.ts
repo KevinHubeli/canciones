@@ -4,6 +4,7 @@ import { getSong, updateSong } from "@/lib/songs";
 import { importFromLaCuerda } from "@/lib/importers/lacuerda";
 import { pickExactMatch, searchLaCuerda } from "@/lib/importers/lacuerdaSearch";
 import { ImportError } from "@/lib/importers/shared";
+import { logAudit } from "@/lib/audit";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -45,6 +46,7 @@ export async function POST(
       artist: song.artist || imported.artist,
     });
 
+    await logAudit({ action: "chords", entity: "song", entityId: id, title: song.title });
     return NextResponse.json({ matched: true, url: match.url, song: updated });
   } catch (err) {
     if (err instanceof ImportError) {

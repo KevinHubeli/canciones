@@ -61,3 +61,17 @@ export function splitEntries<S>(entries: SetlistEntry<S>[]): {
   }
   return { songs, dividers };
 }
+
+/** Para la URL del visor: "ALABANZA.0,OFRENDA.2" (nombre.posición). */
+export function encodeDividers(dividers: SetlistDivider[]): string {
+  return dividers.map((d) => `${d.name}.${d.position}`).join(",");
+}
+
+export function decodeDividers(param: string | undefined, songCount: number): SetlistDivider[] {
+  if (!param) return [];
+  const items = param.split(",").map((part) => {
+    const dot = part.lastIndexOf(".");
+    return { name: part.slice(0, dot), position: Number(part.slice(dot + 1)) };
+  });
+  return sanitizeDividers(items, songCount);
+}

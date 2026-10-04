@@ -1,5 +1,6 @@
 import { mergeEntries, sanitizeDividers, splitEntries, type SetlistDivider } from "./src/lib/dividers";
 import { normalizePlainChords, parseSongLine, displayChord } from "./src/lib/chords";
+import { findJunkLines, removeJunkLines } from "./src/lib/junk";
 
 let failures = 0;
 let passed = 0;
@@ -123,6 +124,29 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
   const again = normalizePlainChords(normalizePlainChords("Intro: Am - F"));
   check("es idempotente", again === normalizePlainChords("Intro: Am - F"));
   check("ya con corchetes: sigue igual", normalizePlainChords("INTRO: [D] [Bm]") === "INTRO: [D] [Bm]");
+}
+
+// ---- Basura de páginas web ----
+{
+  const dirty = ["", " Diagramas de Acordes ", "Mostrar / Ocultar ", "Guitarra ", "Piano ", "Ukulele ", "Charango ", "   D", "///QUIERO LLENAR", "G", "TU TRONO DE ALABANZA"].join("\n");
+  const found = findJunkLines(dirty);
+  check("detecta las 6 líneas de menú", found.length === 6, JSON.stringify(found.map((f) => f.text)));
+  const clean = removeJunkLines(dirty);
+  check("al quitarlas queda la canción", clean.startsWith("   D\n///QUIERO LLENAR") && !/Guitarra|Ukulele|Diagramas/.test(clean), JSON.stringify(clean.slice(0, 40)));
+  check("después de limpiar ya no hay basura", findJunkLines(clean).length === 0);
+  check("detecta links y créditos", findJunkLines("Letra\nhttps://www.cifraclub.com/x\nwww.lacuerda.net\n© 2020 Todos los derechos").length === 3);
+  check("no toca una canción normal", findJunkLines("[Am]Cantaré de tu [F]amor\nBajo tu cuidado estoy\nSolo tú eres digno").length === 0);
+  check("una línea con acordes nunca es basura", findJunkLines("[Am]Guitarra").length === 0);
+  check("'Bajo' solo en una línea sí se marca (lo decide la persona)", findJunkLines("Bajo").length === 1);
+  check("sin basura devuelve lo mismo", removeJunkLines("Hola\n\nMundo") === "Hola\n\nMundo");
+}
+
+// ---- Guiones y barras entre acordes ----
+{
+  const n = normalizePlainChords("Bm      G      ////A - Bm - G////\nAL QUE ES DIGNO\nAm - F\nhola mundo").split("\n");
+  check("acordes con //// y guiones: todos entre corchetes", n[0] === "[Bm] [G] ////[A] - [Bm] - [G]////", n[0]);
+  check("esa línea no se mezcla con la letra", n[1] === "AL QUE ES DIGNO");
+  check("Am - F sobre una letra: se une a la letra", n[2] === "[Am]hola [F]mundo", n[2]);
 }
 
 console.log(`\nRESULTADO: ${passed} OK, ${failures} FAIL`);

@@ -33,7 +33,7 @@ function runCase(name: string, body: string, semitones = 0, expectPagesOverLimit
   const linesPerColumn = linesPerColumnAt(fontSize);
 
   // Las líneas en blanco al borde de una columna se descartan a propósito.
-  const totalRunsExpected = buildRuns(body, semitones).filter((r) => r.text.trim()).length;
+  const totalRunsExpected = buildRuns(body, semitones, layout.maxChars).filter((r) => r.text.trim()).length;
   const totalRunsGot = pages.reduce(
     (sum, p) => sum + p.columns.reduce((s, c) => s + c.filter((r) => r.text.trim()).length, 0),
     0
@@ -77,7 +77,7 @@ function runCase(name: string, body: string, semitones = 0, expectPagesOverLimit
     });
   });
 
-  const wrappedRuns = buildRuns(body, semitones).filter((r) => wrappedLineCountAt(r.text, fontSize) > 1).length;
+  const wrappedRuns = buildRuns(body, semitones, layout.maxChars).filter((r) => wrappedLineCountAt(r.text, fontSize) > 1).length;
   console.log(
     `  fontSize=${fontSize} pages=${pages.length} totalRuns=${totalRunsGot} linesPerColumn=${linesPerColumn} runsQueEnvuelven=${wrappedRuns}`
   );
@@ -114,9 +114,7 @@ runCase(
   "muy larga (canción tipo maratón, muchas repeticiones — caso de estrés: 25 líneas de ~65 caracteres cada una, más larga que cualquier canción real de la base)",
   Array.from({ length: 25 }, (_, i) =>
     `[Am]Repetición ${i + 1}: mientras yo a[F]labo, Él pe[C]lea mis bata[G]llas por mí`
-  ).join("\n\n"),
-  0,
-  true
+  ).join("\n\n")
 );
 
 runCase(

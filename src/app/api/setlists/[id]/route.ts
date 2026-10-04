@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
 import { deleteSetlist, getSetlist, updateSetlist } from "@/lib/setlists";
+import { logAudit } from "@/lib/audit";
 import { sanitizeDividers, type SetlistDivider } from "@/lib/dividers";
 
 const UUID_RE =
@@ -77,6 +78,7 @@ export async function PATCH(
     if (!setlist) {
       return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
     }
+    await logAudit({ action: "update", entity: "setlist", entityId: setlist.id, title: setlist.title });
     return NextResponse.json({ setlist });
   } catch (err) {
     console.error("PATCH /api/setlists/[id] failed:", err);
@@ -96,10 +98,12 @@ export async function DELETE(
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
   }
   try {
+    const existing = await getSetlist(id);
     const deleted = await deleteSetlist(id);
     if (!deleted) {
       return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
     }
+    await logAudit({ action: "delete", entity: "setlist", entityId: id, title: existing?.title ?? "(sin título)" });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("DELETE /api/setlists/[id] failed:", err);

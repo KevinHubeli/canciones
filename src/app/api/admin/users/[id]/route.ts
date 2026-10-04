@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isOwner } from "@/lib/session";
+import { logAudit } from "@/lib/audit";
 import { deleteUser } from "@/lib/users";
 
 const UUID_RE =
@@ -17,9 +18,11 @@ export async function DELETE(
     return NextResponse.json({ error: "No encontramos ese usuario." }, { status: 404 });
   }
   try {
-    if (!(await deleteUser(id))) {
+    const deletedName = await deleteUser(id);
+    if (!deletedName) {
       return NextResponse.json({ error: "No encontramos ese usuario." }, { status: 404 });
     }
+    await logAudit({ action: "delete", entity: "user", entityId: id, title: deletedName });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("DELETE /api/admin/users/[id] failed:", err);

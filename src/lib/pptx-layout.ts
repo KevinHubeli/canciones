@@ -20,10 +20,14 @@ export const COL_HEIGHT_IN = 6.3;
 export const COL_WIDTH_IN = (SLIDE_WIDTH_IN - MARGIN_X_IN * 2 - COL_GAP_IN) / 2;
 
 export const LINE_HEIGHT_FACTOR = 1.25;
-export const CHAR_WIDTH_FACTOR = 0.58; // ancho aproximado de un carácter en Courier New
+export const CHAR_WIDTH_FACTOR = 0.6; // Courier New: cada carácter ocupa exactamente 0,6 del tamaño de letra
 
-export const COL_WIDTH_PT = COL_WIDTH_IN * 72;
-export const COL_HEIGHT_PT = COL_HEIGHT_IN * 72;
+// Un cuadro de texto de PowerPoint deja 0,1" a cada lado y 0,05" arriba y abajo
+// antes de empezar a escribir: ese espacio no se puede usar.
+export const TEXT_INSET_X_IN = 0.1;
+export const TEXT_INSET_Y_IN = 0.05;
+export const COL_WIDTH_PT = (COL_WIDTH_IN - TEXT_INSET_X_IN * 2) * 72;
+export const COL_HEIGHT_PT = (COL_HEIGHT_IN - TEXT_INSET_Y_IN * 2) * 72;
 
 // Fuente grande por defecto para canciones normales; para las muy largas se
 // va bajando (hasta el piso) con tal de que entren en MAX_PAGES_PER_SONG
@@ -32,7 +36,12 @@ export const COL_HEIGHT_PT = COL_HEIGHT_IN * 72;
 // porque cada uno es un párrafo que envuelve por su cuenta).
 export const MAX_FONT_SIZE = 28;
 export const MIN_FONT_SIZE = 12;
-export const MAX_PAGES_PER_SONG = 2;
+// Lo normal es que una canción entre en 2 hojas. Si para eso la letra tendría
+// que quedar más chica que COMFORTABLE_FONT_SIZE, se permite una tercera hoja
+// (hasta MAX_PAGES_PER_SONG) antes que achicar la letra.
+export const PREFERRED_PAGES_PER_SONG = 2;
+export const MAX_PAGES_PER_SONG = 3;
+export const COMFORTABLE_FONT_SIZE = 16;
 
 // Compatibilidad: tamaño "de referencia" para vistas previas simples.
 export const FONT_SIZE = MAX_FONT_SIZE;
@@ -110,10 +119,10 @@ function splitLongRawLine(raw: string, maxChars = MAX_LINE_CHARS): string[] {
  * Las líneas de letra muy largas se cortan al medio (ver splitLongRawLine).
  * Un bloque nunca se parte al paginar: el acorde siempre queda con su letra.
  */
-export function buildBlocks(body: string, semitones: number): Run[][] {
+export function buildBlocks(body: string, semitones: number, maxChars = MAX_LINE_CHARS): Run[][] {
   const blocks: Run[][] = [];
   for (const originalRaw of normalizePlainChordLines(body)) {
-    for (const raw of splitLongRawLine(originalRaw)) {
+    for (const raw of splitLongRawLine(originalRaw, maxChars)) {
       const { lyrics, chords } = parseSongLine(raw);
       const block: Run[] = [];
       if (chords.length > 0) {
@@ -141,8 +150,8 @@ export function buildBlocks(body: string, semitones: number): Run[][] {
   return blocks;
 }
 
-export function buildRuns(body: string, semitones: number): Run[] {
-  return buildBlocks(body, semitones).flat();
+export function buildRuns(body: string, semitones: number, maxChars = MAX_LINE_CHARS): Run[] {
+  return buildBlocks(body, semitones, maxChars).flat();
 }
 
 function isBlankBlock(block: Run[]): boolean {
@@ -210,46 +219,84 @@ export function chunkPairs<T>(items: T[]): T[][] {
 }
 
 export type SongPage = { columns: Run[][]; index: number; count: number };
-export type SongLayout = { fontSize: number; pages: SongPage[] };
+export type SongLayout = {
+  fontSize: number;
+  /** Largo máximo (en caracteres) con el que se cortaron las líneas de letra. */
+  maxChars: number;
+  pages: SongPage[];
+};
+
+/** Cuántos caracteres de Courier New entran en el ancho de una columna a ese tamaño. */
+export function charsPerLineAt(fontSize: number): number {
+  return Math.max(8, Math.floor(COL_WIDTH_PT / (fontSize * CHAR_WIDTH_FACTOR)));
+}
+
+type Candidate = { fontSize: number; maxChars: number; blocks: Run[][]; columns: Run[][]; pages: number };
+
+function candidateAt(body: string, semitones: number, fontSize: number, maxChars: number): Candidate {
+  const blocks = buildBlocks(body, semitones, maxChars);
+  const columns = paginateBlocksAt(blocks, fontSize);
+  return { fontSize, maxChars, blocks, columns, pages: Math.ceil(columns.length / 2) };
+}
+
+const noWrapAt = (c: Candidate) =>
+  c.blocks.every((block) => block.every((r) => wrappedLineCountAt(r.text, c.fontSize) === 1));
 
 /**
- * Elige el tamaño de letra más grande posible para una canción, respetando
- * dos reglas: (1) entra en como máximo MAX_PAGES_PER_SONG hojas, y (2), si
- * se puede, ninguna línea se envuelve (para no romper la alineación acorde↔
- * letra). Si ninguna combinación logra ambas cosas, se prioriza el límite
- * de hojas por sobre evitar el envolvido.
+ * Elige el tamaño de letra más grande que se pueda leer cómodo, en este orden:
+ *  1. Con las líneas como vienen (solo se cortan las de más de 48 caracteres),
+ *     sin que ninguna se envuelva, en 2 hojas y sin bajar de COMFORTABLE_FONT_SIZE.
+ *  2. Si no, cortando las líneas largas según el tamaño de letra (así una
+ *     línea de 45 caracteres no obliga a usar letra chica). Se prefiere el
+ *     tamaño más grande que no pase del doble de renglones que el original
+ *     (primero en 2 hojas y recién después en 3); si ni así entra, sin ese límite.
+ *  3. Como último recurso, letra más chica (hasta MIN_FONT_SIZE), en 3 hojas.
+ * Cortar una línea la parte en dos renglones; el acorde queda con su pedazo de letra.
  */
-export function pickFontSizeForSong(blocks: Run[][]): number {
-  const runs = blocks.flat();
-  let bestWithinPages = MIN_FONT_SIZE;
-  let foundWithinPages = false;
+const SPLIT_GROWTH_STEPS = [2, Infinity];
 
-  for (let fontSize = MAX_FONT_SIZE; fontSize >= MIN_FONT_SIZE; fontSize--) {
-    const columns = paginateBlocksAt(blocks, fontSize);
-    const pages = Math.ceil(columns.length / 2);
-    if (pages > MAX_PAGES_PER_SONG) continue;
+function chooseLayout(body: string, semitones: number): Candidate {
+  const fontSizes = (from: number, to: number) =>
+    Array.from({ length: Math.max(0, from - to + 1) }, (_, i) => from - i);
 
-    if (!foundWithinPages) {
-      foundWithinPages = true;
-      bestWithinPages = fontSize;
-    }
-
-    const noWrap = runs.every((r) => wrappedLineCountAt(r.text, fontSize) === 1);
-    if (noWrap) return fontSize;
+  // 1) líneas intactas
+  for (const fontSize of fontSizes(MAX_FONT_SIZE, COMFORTABLE_FONT_SIZE)) {
+    const c = candidateAt(body, semitones, fontSize, MAX_LINE_CHARS);
+    if (c.pages <= PREFERRED_PAGES_PER_SONG && noWrapAt(c)) return c;
   }
 
-  return bestWithinPages;
+  // 2) cortando según el tamaño de letra
+  const originalLines = Math.max(1, buildBlocks(body, semitones, Infinity).length);
+  const comfortable = fontSizes(MAX_FONT_SIZE, COMFORTABLE_FONT_SIZE).map((fontSize) =>
+    candidateAt(body, semitones, fontSize, charsPerLineAt(fontSize))
+  );
+  for (const growth of SPLIT_GROWTH_STEPS) {
+    for (const maxPages of [PREFERRED_PAGES_PER_SONG, MAX_PAGES_PER_SONG]) {
+      const found = comfortable.find(
+        (c) => c.pages <= maxPages && c.blocks.length / originalLines <= growth
+      );
+      if (found) return found;
+    }
+  }
+
+  // 3) letra más chica
+  let last = comfortable[comfortable.length - 1];
+  for (const fontSize of fontSizes(COMFORTABLE_FONT_SIZE - 1, MIN_FONT_SIZE)) {
+    const c = candidateAt(body, semitones, fontSize, charsPerLineAt(fontSize));
+    if (c.pages <= MAX_PAGES_PER_SONG) return c;
+    last = c;
+  }
+  return last;
 }
 
 /** Arma las páginas (de a 2 columnas) para una canción completa, con el
  * tamaño de letra más grande que respeta el máximo de hojas por canción. */
 export function paginateSong(body: string, semitones: number): SongLayout {
-  const blocks = buildBlocks(body, semitones);
-  const fontSize = pickFontSizeForSong(blocks);
-  const columns = paginateBlocksAt(blocks, fontSize);
+  const { fontSize, maxChars, columns } = chooseLayout(body, semitones);
   const pages = chunkPairs(columns);
   return {
     fontSize,
+    maxChars,
     pages: pages.map((cols, idx) => ({ columns: cols, index: idx, count: pages.length })),
   };
 }

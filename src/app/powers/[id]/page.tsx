@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Download, Eye, Play } from "lucide-react";
 import { getSetlist } from "@/lib/setlists";
 import { displayChord } from "@/lib/chords";
-import { mergeEntries } from "@/lib/dividers";
+import { encodeDividers, mergeEntries } from "@/lib/dividers";
 
 export default async function PublicPowerPage({
   params,
@@ -18,6 +18,9 @@ export default async function PublicPowerPage({
   const entries = mergeEntries(setlist.songs, setlist.dividers);
   let songIndex = -1;
   const tParam = setlist.songs.map((s) => s.semitones).join(",");
+  const dParam = encodeDividers(setlist.dividers);
+  // Los divisores viajan en la URL para que el visor muestre "ALABANZA", "OFRENDA"... entre canciones.
+  const dQuery = dParam ? `&d=${encodeURIComponent(dParam)}` : "";
 
   return (
     <main className="flex flex-1 flex-col pt-12">
@@ -53,7 +56,7 @@ export default async function PublicPowerPage({
         <>
           <div className="px-5 pb-4">
             <Link
-              href={`/canciones/${setlist.songs[0].id}?set=${setParam}&i=0&t=${tParam}`}
+              href={`/canciones/${setlist.songs[0].id}?set=${setParam}&i=0&t=${tParam}${dQuery}&s=1`}
               className="flex items-center justify-center gap-2 rounded-full bg-accent py-3 text-sm font-semibold text-night"
             >
               <Play size={16} />
@@ -77,7 +80,7 @@ export default async function PublicPowerPage({
             return (
             <li key={song.id}>
               <Link
-                href={`/canciones/${song.id}?set=${setParam}&i=${i}&t=${tParam}`}
+                href={`/canciones/${song.id}?set=${setParam}&i=${i}&t=${tParam}${dQuery}`}
                 className="flex items-center gap-3 rounded-2xl border border-plum/60 bg-night/40 px-4 py-3 active:bg-night/70"
               >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-plum/60 text-xs text-lilac-light">
