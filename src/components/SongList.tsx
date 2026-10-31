@@ -6,7 +6,7 @@ import { Search } from "lucide-react";
 import type { SongSummary } from "@/lib/types";
 import Spinner from "@/components/Spinner";
 import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
-import { RECENT_KEY, parseRecentSongs } from "@/lib/recentSongs";
+import { RECENT_KEY, parseRecentSongs, pruneRecentSongs } from "@/lib/recentSongs";
 import { useStoredString } from "@/lib/useStoredString";
 
 const PAGE_SIZE = 24;
@@ -31,11 +31,31 @@ export default function SongList() {
   const recentRaw = useStoredString(RECENT_KEY);
   const recent = useMemo(() => parseRecentSongs(recentRaw), [recentRaw]);
   const loadingRef = useRef(false);
+  const checkedRecentsRef = useRef("");
   // Número de la última búsqueda: una respuesta vieja (de lo que se tipeó antes) se descarta.
   const searchIdRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
   // Lo último que se buscó, para que el reintento no use valores viejos.
   const latestRef = useRef({ query: "", tags: [] as string[], count: 0 });
+
+  // Los "Recientes" viven en el navegador: si una canción se borró, se saca de la lista.
+  // Si no hay conexión no se toca nada.
+  useEffect(() => {
+    const key = recent.map((s) => s.id).join(",");
+    if (!key || checkedRecentsRef.current === key) return;
+    checkedRecentsRef.current = key;
+    let cancelled = false;
+    fetch(`/api/songs?ids=${encodeURIComponent(key)}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((data: { songs?: { id: string }[] }) => {
+        if (cancelled || !Array.isArray(data.songs)) return;
+        pruneRecentSongs(new Set(data.songs.map((s) => s.id)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [recent]);
 
   const load = useCallback(async (q: string, tags: string[], offset: number) => {
     // "Cargar más" no se pisa a sí mismo, pero una búsqueda nueva siempre arranca.

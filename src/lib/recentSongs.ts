@@ -32,3 +32,16 @@ export function addRecentSong(song: RecentSong) {
   const prev = parseRecentSongs(readStored(RECENT_KEY)).filter((s) => s.id !== song.id);
   writeStored(RECENT_KEY, JSON.stringify([song, ...prev].slice(0, MAX)));
 }
+
+/** Se queda solo con los recientes que siguen existiendo (los demás se borraron o fueron a la papelera). */
+export function keepExistingRecents(recents: RecentSong[], existingIds: ReadonlySet<string>): RecentSong[] {
+  return recents.filter((s) => existingIds.has(s.id));
+}
+
+/** Saca de lo guardado en el navegador las canciones que ya no existen en el servidor. */
+export function pruneRecentSongs(existingIds: ReadonlySet<string>) {
+  if (typeof window === "undefined") return;
+  const prev = parseRecentSongs(readStored(RECENT_KEY));
+  const next = keepExistingRecents(prev, existingIds);
+  if (next.length !== prev.length) writeStored(RECENT_KEY, JSON.stringify(next));
+}

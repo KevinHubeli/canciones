@@ -15,7 +15,7 @@ import {
   parseStoredIndex,
   swipeDirection,
 } from "./src/lib/viewerPrefs";
-import { parseRecentSongs } from "./src/lib/recentSongs";
+import { keepExistingRecents, parseRecentSongs } from "./src/lib/recentSongs";
 import { decodeDividers, mergeEntries, type SetlistDivider } from "./src/lib/dividers";
 
 let failures = 0;
@@ -302,6 +302,14 @@ const ID3 = "33333333-3333-4333-8333-333333333333";
 // ---------- Recientes ----------
 {
   check("recientes: null/vacío", parseRecentSongs(null).length === 0 && parseRecentSongs("").length === 0);
+  {
+    const kept = keepExistingRecents(
+      [{ id: "a", title: "A", artist: "" }, { id: "b", title: "B", artist: "" }, { id: "c", title: "C", artist: "" }],
+      new Set(["b"])
+    );
+    check("recientes: se descartan las que ya no existen", kept.length === 1 && kept[0].id === "b");
+    check("recientes: sin ninguna existente queda vacío", keepExistingRecents([{ id: "a", title: "A", artist: "" }], new Set()).length === 0);
+  }
   check("recientes: JSON roto", parseRecentSongs("{rota").length === 0);
   check("recientes: no es un array", parseRecentSongs('{"a":1}').length === 0);
   const raw = JSON.stringify([{ id: "a", title: "Uno", artist: "X" }, null, 5, { id: 3, title: "t" }, { id: "a", title: "Repetida", artist: "Y" }, { id: "b", title: "Dos" }]);

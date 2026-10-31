@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSong, findSongWithSameTitle, listSongs } from "@/lib/songs";
+import { createSong, findSongWithSameTitle, getSongSummariesByIds, listSongs } from "@/lib/songs";
 import { requireAdmin } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { normalizePlainChords } from "@/lib/chords";
 import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
-import { parseBpm, parseIntParam, parseNotes } from "@/lib/validation";
+import { isUuid, parseBpm, parseIntParam, parseNotes } from "@/lib/validation";
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 500;
@@ -12,6 +12,19 @@ const ALL_FILTERS: string[] = [...SONG_TAGS, NO_CHORDS_FILTER];
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
+
+  // ?ids=a,b,c: devuelve solo las que existen (el buscador lo usa para limpiar sus "Recientes").
+  const idsParam = params.get("ids");
+  if (idsParam !== null) {
+    const ids = [...new Set(idsParam.split(",").map((s) => s.trim()).filter(isUuid))].slice(0, 20);
+    try {
+      return NextResponse.json({ songs: await getSongSummariesByIds(ids) });
+    } catch (err) {
+      console.error("GET /api/songs?ids failed:", err);
+      return NextResponse.json({ error: "No se pudieron cargar las canciones." }, { status: 500 });
+    }
+  }
+
   const q = params.get("q")?.trim() || undefined;
   const tags = params
     .getAll("tag")
