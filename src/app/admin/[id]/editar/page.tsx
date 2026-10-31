@@ -1,4 +1,5 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/session";
 import { getSong } from "@/lib/songs";
 import SongForm from "@/components/SongForm";
 
@@ -7,6 +8,8 @@ export default async function EditarCancionPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  if (!(await requireAdmin())) redirect("/admin/login");
+
   const { id } = await params;
   const song = await getSong(id).catch(() => null);
   if (!song) notFound();

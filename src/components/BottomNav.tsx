@@ -20,7 +20,7 @@ export default function BottomNav() {
   if (searchParams.get("set")) return null;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <nav aria-label="Navegación principal" className="fixed inset-x-0 bottom-0 z-40 flex justify-center pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="flex items-center gap-1 rounded-full bg-night/70 p-1.5 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.6)] backdrop-blur">
         {ITEMS.map(({ href, label, icon: Icon }) => {
           const active =
@@ -29,6 +29,7 @@ export default function BottomNav() {
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 active ? "bg-plum text-mist" : "text-lilac-light"
               }`}

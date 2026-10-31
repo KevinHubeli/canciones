@@ -1,3 +1,4 @@
+import { UUID_RE } from "@/lib/validation";
 import { NextResponse } from "next/server";
 import PptxGenJS from "pptxgenjs";
 import { getSetlist } from "@/lib/setlists";
@@ -9,12 +10,16 @@ import {
   COL_WIDTH_IN,
   CHORD_COLOR,
   MARGIN_X_IN,
+  pptxContentDisposition,
   SLIDE_HEIGHT_IN,
   SLIDE_WIDTH_IN,
 } from "@/lib/pptx-layout";
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Un power enorme no debe colgar el servidor armando cientos de hojas.
+export const maxDuration = 60;
+const MAX_SONGS = 60;
+const MAX_SLIDES = 400;
+
 
 export async function GET(
   _request: Request,
@@ -31,10 +36,25 @@ export async function GET(
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
   }
 
+  const songCount = setlist.songs.length;
+  if (songCount > MAX_SONGS) {
+    return NextResponse.json(
+      { error: `El power tiene ${songCount} canciones y se pueden exportar hasta ${MAX_SONGS}. Armá dos powers más chicos.` },
+      { status: 413 }
+    );
+  }
+
   const slidesData = await buildSlides(setlist);
 
   if (!slidesData.some((d) => d.kind === "song")) {
     return NextResponse.json({ error: "El power no tiene canciones." }, { status: 400 });
+  }
+
+  if (slidesData.length > MAX_SLIDES) {
+    return NextResponse.json(
+      { error: `El power genera ${slidesData.length} diapositivas y el máximo es ${MAX_SLIDES}. Armá dos powers más chicos.` },
+      { status: 413 }
+    );
   }
 
   const pptx = new PptxGenJS();
@@ -106,13 +126,18 @@ export async function GET(
     });
   }
 
-  const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
-  const filename = `${setlist.title.replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "power"}.pptx`;
+  let buffer: Buffer;
+  try {
+    buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+  } catch {
+    return NextResponse.json({ error: "No pudimos armar el PowerPoint. Probá de nuevo." }, { status: 500 });
+  }
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "Content-Disposition": `attachment; filename="${filename}"`,
+      // Con tildes y ñ: filename ASCII de respaldo + filename* UTF-8 (RFC 5987).
+      "Content-Disposition": pptxContentDisposition(setlist.title),
     },
   });
 }

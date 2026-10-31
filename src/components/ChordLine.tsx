@@ -1,6 +1,8 @@
 import {
   displayChord,
+  layoutChordColumns,
   parseSongLine,
+  prefersFlats,
   toEnglishNotation,
   transposeChord,
   wrapLine,
@@ -16,6 +18,7 @@ export default function ChordLine({
   textSizeClass = "",
   interactive,
   maxCharsPerRow,
+  originalKey,
 }: {
   raw: string;
   semitones: number;
@@ -23,6 +26,8 @@ export default function ChordLine({
   textSizeClass?: string;
   interactive: boolean;
   maxCharsPerRow?: number | null;
+  /** Tono original de la canción: con él, los tonos bemol se escriben con bemoles (Bb, Eb, Ab). */
+  originalKey?: string;
 }) {
   const { lyrics, chords } = parseSongLine(raw);
 
@@ -44,12 +49,13 @@ export default function ChordLine({
     );
   }
 
+  const flats = originalKey ? prefersFlats(originalKey, semitones) : undefined;
   const resolved: ResolvedChord[] = chords.map((c) => ({
     index: c.index,
-    label: displayChord(c.chord, semitones, notation),
+    label: displayChord(c.chord, semitones, notation, originalKey),
     // El diagrama se busca siempre en notación inglesa (así lo esperan las
     // formas de guitarra/bajo); lo que se muestra respeta la preferencia del usuario.
-    lookup: transposeChord(toEnglishNotation(c.chord), semitones),
+    lookup: transposeChord(toEnglishNotation(c.chord), semitones, flats),
   }));
 
   const rows = maxCharsPerRow
@@ -64,14 +70,15 @@ export default function ChordLine({
           className={`relative whitespace-pre font-mono ${textSizeClass} leading-relaxed pt-[1.3em] [break-inside:avoid]`}
         >
           <div className="absolute inset-x-0 top-0 h-[1.3em]">
-            {row.chords.map((c, i) => (
+            {/* Si dos acordes quedan pegados, el segundo se corre para no pisar al primero. */}
+            {layoutChordColumns(row.chords).map((c, i) => (
               <span
                 key={i}
                 data-chord={interactive ? c.lookup : undefined}
                 className={`absolute top-0 font-semibold text-chord-gold ${
                   interactive ? "cursor-pointer underline decoration-dotted underline-offset-4" : ""
                 }`}
-                style={{ left: `${c.index}ch` }}
+                style={{ left: `${c.col}ch` }}
               >
                 {c.label}
               </span>

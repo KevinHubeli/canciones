@@ -7,7 +7,16 @@ export default function LogoutButton() {
   const router = useRouter();
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      // El service worker guarda respuestas del admin: se borran sus cachés al salir.
+      try {
+        navigator.serviceWorker?.controller?.postMessage({ type: "clear-caches" });
+      } catch {
+        // sin service worker, no hay nada que limpiar
+      }
+    }
     router.push("/");
     router.refresh();
   }

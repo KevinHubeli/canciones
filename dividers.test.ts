@@ -1,4 +1,4 @@
-import { mergeEntries, sanitizeDividers, splitEntries, type SetlistDivider } from "./src/lib/dividers";
+import { decodeDividers, encodeDividers, mergeEntries, sanitizeDividers, splitEntries, type SetlistDivider } from "./src/lib/dividers";
 import { normalizePlainChords, parseSongLine, displayChord } from "./src/lib/chords";
 import { findJunkLines, removeJunkLines } from "./src/lib/junk";
 
@@ -147,6 +147,97 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
   check("acordes con //// y guiones: todos entre corchetes", n[0] === "[Bm] [G] ////[A] - [Bm] - [G]////", n[0]);
   check("esa línea no se mezcla con la letra", n[1] === "AL QUE ES DIGNO");
   check("Am - F sobre una letra: se une a la letra", n[2] === "[Am]hola [F]mundo", n[2]);
+}
+
+// ---- Bordes de dividers.ts ----
+{
+  const out = sanitizeDividers(
+    [
+      { name: "ALABANZA", position: NaN },
+      { name: "OFRENDA", position: Infinity },
+      { name: "FINAL", position: -Infinity },
+      { name: "ADORACIÓN", position: -3 },
+      { name: "FINAL", position: 2.5 },
+    ],
+    4
+  );
+  check(
+    "sanitize: NaN e Infinity se descartan, negativos van a 0, 2.5 redondea",
+    same(out, [
+      { name: "ADORACIÓN", position: 0 },
+      { name: "FINAL", position: 3 },
+    ]),
+    JSON.stringify(out)
+  );
+  check(
+    "sanitize: songCount NaN o negativo => todo en 0",
+    same(sanitizeDividers([{ name: "FINAL", position: 5 }], NaN), [{ name: "FINAL", position: 0 }]) &&
+      same(sanitizeDividers([{ name: "FINAL", position: 5 }], -2), [{ name: "FINAL", position: 0 }])
+  );
+  check(
+    "sanitize: songCount Infinity (PATCH sin songIds) no acota arriba",
+    sanitizeDividers([{ name: "FINAL", position: 40 }], Infinity)[0].position === 40
+  );
+  const rep = sanitizeDividers(
+    [
+      { name: "OFRENDA", position: 1 },
+      { name: "OFRENDA", position: 1 },
+      { name: "OFRENDA", position: 2 },
+      { name: "ALABANZA", position: 0 },
+      { name: "OFRENDA", position: 2 },
+    ],
+    3
+  );
+  check(
+    "sanitize: dobles idénticos y seguidos se juntan; el resto se conserva en orden",
+    same(rep.map((d) => `${d.name}.${d.position}`), ["OFRENDA.1", "OFRENDA.2", "ALABANZA.0", "OFRENDA.2"]),
+    JSON.stringify(rep)
+  );
+  const input = [{ name: "FINAL", position: 99 }];
+  sanitizeDividers(input, 2);
+  check("sanitize: no modifica el array de entrada", input[0].position === 99);
+  check(
+    "sanitize: sin canciones => todo posición 0",
+    sanitizeDividers([{ name: "FINAL", position: 3 }, { name: "ALABANZA", position: 1 }], 0).every((d) => d.position === 0)
+  );
+}
+{
+  // mergeEntries ya no pierde divisores con posición fuera de rango
+  const e = mergeEntries(["a", "b"], [
+    { name: "FINAL", position: 9 },
+    { name: "ALABANZA", position: -4 },
+    { name: "OFRENDA", position: NaN },
+  ]);
+  const labels = e.map((x) => (x.kind === "divider" ? `#${x.name}` : x.song));
+  check("merge: posición fuera de rango o NaN se acota, no se pierde", same(labels, ["#ALABANZA", "a", "b", "#FINAL", "#OFRENDA"]), labels.join(","));
+  check(
+    "merge: divisores desordenados salen ordenados por posición (estable)",
+    same(
+      mergeEntries(["a", "b", "c"], [
+        { name: "FINAL", position: 3 },
+        { name: "OFRENDA", position: 1 },
+        { name: "ALABANZA", position: 1 },
+        { name: "ADORACIÓN", position: 0 },
+      ]).map((x) => (x.kind === "divider" ? `#${x.name}` : x.song)),
+      ["#ADORACIÓN", "a", "#OFRENDA", "#ALABANZA", "b", "c", "#FINAL"]
+    )
+  );
+  const twice = mergeEntries([] as string[], [
+    { name: "ALABANZA", position: 0 },
+    { name: "ALABANZA", position: 0 },
+  ]);
+  check("merge: nombres repetidos se conservan (la limpieza es del sanitize)", twice.length === 2);
+}
+{
+  const ds: SetlistDivider[] = [
+    { name: "ALABANZA", position: 0 },
+    { name: "ADORACIÓN", position: 2 },
+  ];
+  check("encode/decode son inversas", same(decodeDividers(encodeDividers(ds), 5), ds));
+  check("decode: undefined y vacío => []", decodeDividers(undefined, 3).length === 0 && decodeDividers("", 3).length === 0);
+  check("decode: posición vacía no se vuelve 0", decodeDividers("ALABANZA.", 3).length === 0);
+  check("decode: sin punto o con basura se descarta", decodeDividers("ALABANZA,FINAL.x,OFRENDA.1", 3).map((d) => d.name).join() === "OFRENDA");
+  check("decode: posición mayor se acota", decodeDividers("FINAL.99", 3)[0].position === 3);
 }
 
 console.log(`\nRESULTADO: ${passed} OK, ${failures} FAIL`);

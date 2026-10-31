@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import SongList from "@/components/SongList";
+
+export const metadata: Metadata = {
+  title: "Buscar canciones",
+  description: "Buscá por título o artista y filtrá por tipo de canción.",
+};
 
 export default function CancionesPage() {
   return (

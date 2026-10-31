@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx pptx-layout.test.ts && tsx dividers.test.ts",
-    "test:e2e": "node e2e/http-test.mjs && node e2e/http-test2.mjs && node e2e/ui-test.mjs && node e2e/ui2-test.mjs && node e2e/ui3-test.mjs && node e2e/intro-test.mjs && node e2e/http-test3.mjs && node e2e/ui4-test.mjs",
+    "test": "tsx pptx-layout.test.ts && tsx dividers.test.ts && tsx chords.test.ts && tsx chordDiagrams.test.ts && tsx data.test.ts && tsx auth.test.ts && tsx importers.test.ts && tsx powerTemplates.test.ts && tsx extras-ui.test.ts && tsx visor-pwa.test.ts",
+    "test:e2e": "node e2e/run.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
@@ -18,7 +18,7 @@
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.45.0",
-    "next": "16.2.12",
+    "next": "16.4.3",
     "pptxgenjs": "^4.0.1",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -30,7 +30,7 @@
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
-    "eslint-config-next": "16.2.12",
+    "eslint-config-next": "16.4.3",
     "playwright": "^1.63.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",

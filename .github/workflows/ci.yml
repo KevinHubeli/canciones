@@ -1,0 +1,121 @@
+name: CI
+
+# Verificaciones en cada push y pull request: tipos, lint y tests unitarios.
+# Los e2e son un job aparte, manual y opcional (se lanza a mano desde la pestaña Actions).
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: "Correr también los tests e2e (escriben datos: usan la rama de Neon de los secretos)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: tsc, eslint y tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Genera next-env.d.ts y los tipos de rutas (están en .gitignore).
+      - name: Tipos de Next
+        run: npx next typegen
+
+      - name: Tipos (tsc)
+        run: npx tsc --noEmit
+
+      - name: Lint (eslint)
+        run: npx eslint
+
+      - name: Tests unitarios
+        run: npm test
+
+  e2e:
+    name: e2e (manual, opcional)
+    # Solo cuando se lanza a mano y se marca "run_e2e". Nunca en push ni en pull request.
+    if: github.event_name == 'workflow_dispatch' && inputs.run_e2e
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Un solo e2e a la vez: todos escriben en la misma base de prueba.
+    concurrency:
+      group: e2e-database
+      cancel-in-progress: false
+    env:
+      # ============================== SECRETOS ==============================
+      # Se cargan en Settings > Secrets and variables > Actions. NO pongas valores acá.
+      # Tienen que apuntar a una RAMA DE NEON DE PRUEBA, nunca a producción:
+      #   DATABASE_URL     conexión (con pooling) de la rama de prueba
+      #   ADMIN_USER       dueño de prueba (cualquier nombre, ej. tester)
+      #   ADMIN_PASSWORD   clave del dueño de prueba
+      #   SESSION_SECRET   32 caracteres o más (openssl rand -base64 32)
+      # La rama tiene que tener las migraciones aplicadas (npm run db:migrate contra esa rama).
+      # =======================================================================
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ADMIN_USER: ${{ secrets.ADMIN_USER }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      # Variables que leen los tests (tienen que coincidir con el dueño de arriba).
+      E2E_URL: http://localhost:3100
+      E2E_USER: ${{ secrets.ADMIN_USER }}
+      E2E_PASS: ${{ secrets.ADMIN_PASSWORD }}
+      # Confirmación explícita de que la base de los secretos es de prueba.
+      E2E_ALLOW_WRITES: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar Chromium (Playwright)
+        run: npx playwright install --with-deps chromium
+
+      - name: Compilar
+        run: npx next build
+
+      - name: Levantar la app en el puerto 3100
+        run: |
+          npx next start -p 3100 > next.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fs http://localhost:3100/api/songs?limit=1 > /dev/null; then
+              echo "App lista"; exit 0
+            fi
+            sleep 2
+          done
+          echo "La app no levantó"; cat next.log; exit 1
+
+      - name: Tests e2e
+        run: node e2e/run.mjs
+
+      - name: Subir capturas y log del servidor
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-out
+          path: |
+            e2e/out
+            next.log
+          if-no-files-found: ignore

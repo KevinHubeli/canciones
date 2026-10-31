@@ -3,7 +3,16 @@ import { getDb } from "@/db";
 import { auditLog } from "@/db/schema";
 import { getSessionUsername } from "@/lib/session";
 
-export type AuditAction = "create" | "update" | "delete" | "duplicate" | "chords";
+export type AuditAction =
+  | "create"
+  | "update"
+  | "delete"
+  | "duplicate"
+  | "chords"
+  | "restore"
+  | "purge"
+  | "revert"
+  | "backup";
 export type AuditEntity = "song" | "setlist" | "user";
 
 export type AuditEntry = {

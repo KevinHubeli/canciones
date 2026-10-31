@@ -8,9 +8,9 @@
   --color-plum-deep: #f6f3ee;
   --color-plum: #e4dfd6;
   --color-mist: #2a2723;
-  --color-lilac-light: #8a8073;
-  --color-chord-gold: #b23a2e;
-  --color-accent: #b23a2e;
+  --color-lilac-light: #675e52;
+  --color-chord-gold: #a8352a;
+  --color-accent: #a8352a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,7 +20,7 @@
     --color-plum-deep: #1a1918;
     --color-plum: #33302c;
     --color-mist: #e8e4dd;
-    --color-lilac-light: #8c8680;
+    --color-lilac-light: #a09a93;
     --color-chord-gold: #b9a186;
     --color-accent: #b9a186;
   }
@@ -32,7 +32,7 @@
   --color-plum-deep: #1a1918;
   --color-plum: #33302c;
   --color-mist: #e8e4dd;
-  --color-lilac-light: #8c8680;
+  --color-lilac-light: #a09a93;
   --color-chord-gold: #b9a186;
   --color-accent: #b9a186;
 }
@@ -81,4 +81,30 @@ body {
 .font-display {
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
+}
+
+/* Se puede hacer zoom con los dedos (accesibilidad), pero sin la demora ni el
+   zoom del doble toque, que molesta al tocar botones rápido en vivo. */
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Foco visible al navegar con teclado (en táctil no aparece). */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Quien pidió menos movimiento en su sistema no ve animaciones ni transiciones. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

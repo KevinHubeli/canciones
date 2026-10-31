@@ -19,9 +19,12 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cancionero",
+  // Las páginas ponen su propio título ("Alabaré · Cancionero"); sin título propio queda "Cancionero".
+  title: { default: "Cancionero", template: "%s · Cancionero" },
   description:
     "Nuestras canciones con acordes: buscá, cambiá el tono y tocá desde el celular.",
+  applicationName: "Cancionero",
+  openGraph: { siteName: "Cancionero", locale: "es_AR", type: "website" },
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -35,7 +38,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f6f3ee" },
     { media: "(prefers-color-scheme: dark)", color: "#1a1918" },

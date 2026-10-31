@@ -1,6 +1,6 @@
 import { mergeEntries } from "@/lib/dividers";
 import { paginateSong, type Run } from "@/lib/pptx-layout";
-import { getSong } from "@/lib/songs";
+import { getSongsByIds } from "@/lib/songs";
 import type { Setlist } from "@/lib/setlists";
 
 export type DividerSlide = { kind: "divider"; name: string };
@@ -20,9 +20,11 @@ export type Slide = DividerSlide | SongSlide;
  * PowerPoint como la vista previa, así los dos siempre muestran lo mismo.
  */
 export async function buildSlides(setlist: Setlist): Promise<Slide[]> {
-  const songs = await Promise.all(setlist.songs.map((s) => getSong(s.id)));
+  // Una sola consulta para todas las letras (y sin las canciones en la papelera).
+  const found = await getSongsByIds(setlist.songs.map((s) => s.id));
+  const byId = new Map(found.map((s) => [s.id, s]));
   const entries = mergeEntries(
-    setlist.songs.map((s, i) => ({ semitones: s.semitones, song: songs[i] })),
+    setlist.songs.map((s) => ({ semitones: s.semitones, song: byId.get(s.id) })),
     setlist.dividers
   );
 
@@ -34,7 +36,7 @@ export async function buildSlides(setlist: Setlist): Promise<Slide[]> {
     }
     const { song, semitones } = entry.song;
     if (!song) continue;
-    const { fontSize, pages } = paginateSong(song.body, semitones);
+    const { fontSize, pages } = paginateSong(song.body, semitones, song.originalKey);
     for (const page of pages) {
       slides.push({ kind: "song", title: song.title, fontSize, ...page });
     }

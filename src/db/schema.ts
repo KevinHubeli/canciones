@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { date, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const songs = pgTable(
@@ -14,6 +14,11 @@ export const songs = pgTable(
       .notNull()
       .default(sql`ARRAY[]::text[]`),
     body: text("body").notNull(),
+    // Tempo (pulsos por minuto) y notas libres para el equipo ("entra en el 2º verso").
+    bpm: integer("bpm"),
+    notes: text("notes"),
+    // Papelera: una canción borrada queda acá hasta que se la restaura o se vacía la papelera.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -25,6 +30,27 @@ export const songs = pgTable(
 );
 
 export type SongRow = typeof songs.$inferSelect;
+
+// Historial de versiones de cada canción: una fila por cambio, con el contenido
+// que tenía ANTES del cambio. Sin clave foránea a propósito: sobrevive al borrado.
+export const songVersions = pgTable(
+  "song_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    songId: uuid("song_id").notNull(),
+    title: text("title").notNull(),
+    artist: text("artist").notNull(),
+    originalKey: text("original_key").notNull(),
+    body: text("body").notNull(),
+    savedBy: text("saved_by").notNull(),
+    savedAt: timestamp("saved_at", { withTimezone: true }).notNull().defaultNow(),
+    // update | delete | chords | restore | revert
+    reason: text("reason").notNull(),
+  },
+  (table) => [index("song_versions_song_idx").on(table.songId, table.savedAt)]
+);
+
+export type SongVersionRow = typeof songVersions.$inferSelect;
 
 export const setlists = pgTable("setlists", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -41,6 +67,9 @@ export const setlists = pgTable("setlists", {
   // Divisores de sección (ALABANZA, ADORACIÓN...). Formato: [{ name, position }]
   // donde position = cantidad de canciones que van antes del divisor.
   dividers: jsonb("dividers").notNull().default(sql`'[]'::jsonb`),
+  // Fecha del culto/reunión para la que se armó (opcional) y notas del power.
+  serviceDate: date("service_date"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -80,3 +109,16 @@ export const auditLog = pgTable(
 );
 
 export type AuditRow = typeof auditLog.$inferSelect;
+
+// Intentos fallidos de login por IP/usuario: el límite tiene que vivir en la base
+// porque en serverless cada instancia tiene su propia memoria.
+export const loginAttempts = pgTable(
+  "login_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // "ip:1.2.3.4" o "user:nombre"
+    key: text("key").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("login_attempts_key_at_idx").on(table.key, table.at)]
+);

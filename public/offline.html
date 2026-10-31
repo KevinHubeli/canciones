@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1a1918" />
+    <title>Sin conexión · Cancionero</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f3ee;
+        --fg: #2a2723;
+        --muted: #675e52;
+        --accent: #a8352a;
+        --on-accent: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1a1918;
+          --fg: #e8e4dd;
+          --muted: #a09a93;
+          --accent: #b9a186;
+          --on-accent: #221f1d;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        text-align: center;
+      }
+      main {
+        max-width: 22rem;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 1.5rem;
+      }
+      p {
+        margin: 0 0 24px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+      button {
+        font: inherit;
+        font-weight: 600;
+        padding: 12px 28px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent);
+        color: var(--on-accent);
+      }
+      a {
+        display: block;
+        margin-top: 16px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Sin conexión</h1>
+      <p>
+        No pudimos cargar esta página y todavía no está guardada en el celular. Las canciones y
+        los powers que ya abriste con internet se siguen viendo sin conexión.
+      </p>
+      <button type="button" onclick="location.reload()">Reintentar</button>
+      <a href="/">Volver al inicio</a>
+    </main>
+    <script>
+      // Apenas vuelve la conexión, se recarga sola.
+      window.addEventListener("online", function () {
+        location.reload();
+      });
+    </script>
+  </body>
+</html>

@@ -3,6 +3,9 @@ import { Search } from "lucide-react";
 import { listSongs } from "@/lib/songs";
 
 // Siempre al día: "agregadas últimamente" no debe quedar cacheada del build.
+// Se evaluó un revalidate corto, pero si la base falla en ese momento la
+// página se guardaría vacía (el catch de abajo) y se vería así hasta el
+// próximo refresco: es peor que una consulta liviana por visita.
 export const dynamic = "force-dynamic";
 
 export default async function Home() {

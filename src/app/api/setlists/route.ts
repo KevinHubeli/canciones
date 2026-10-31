@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
+import { isUuid, parseNotes, parseServiceDate } from "@/lib/validation";
 import { createSetlist, listSetlists } from "@/lib/setlists";
 import { logAudit } from "@/lib/audit";
 import { sanitizeDividers } from "@/lib/dividers";
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Solo ids con forma de uuid (si no, Postgres tira error) y sin repetir. */
 function parseSongIds(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
-  const ids = input.filter((id): id is string => typeof id === "string" && UUID_RE.test(id));
+  const ids = input.filter((id): id is string => isUuid(id));
   return [...new Set(ids)];
 }
 
@@ -40,7 +38,14 @@ export async function POST(request: NextRequest) {
   if (!(await requireAdmin())) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
-  let body: { title?: unknown; songIds?: unknown; transpose?: unknown; dividers?: unknown };
+  let body: {
+    title?: unknown;
+    songIds?: unknown;
+    transpose?: unknown;
+    dividers?: unknown;
+    serviceDate?: unknown;
+    notes?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -52,9 +57,20 @@ export async function POST(request: NextRequest) {
   const songIds = parseSongIds(body.songIds);
   const transpose = parseTranspose(body.transpose);
   const dividers = sanitizeDividers(body.dividers, songIds.length);
+  const serviceDate = parseServiceDate(body.serviceDate);
+  if (!serviceDate.ok) return NextResponse.json({ error: serviceDate.error }, { status: 400 });
+  const notes = parseNotes(body.notes);
+  if (!notes.ok) return NextResponse.json({ error: notes.error }, { status: 400 });
 
   try {
-    const setlist = await createSetlist({ title: body.title.trim(), songIds, transpose, dividers });
+    const setlist = await createSetlist({
+      title: body.title.trim(),
+      songIds,
+      transpose,
+      dividers,
+      serviceDate: serviceDate.value,
+      notes: notes.value,
+    });
     await logAudit({ action: "create", entity: "setlist", entityId: setlist.id, title: setlist.title });
     return NextResponse.json({ setlist });
   } catch (err) {

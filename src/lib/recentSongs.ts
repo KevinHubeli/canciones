@@ -9,7 +9,19 @@ export function parseRecentSongs(raw: string | null): RecentSong[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Lo guardado puede venir roto o de una versión vieja: se descarta lo que no sirve
+    // para que un dato raro no tire abajo la lista de recientes.
+    const seen = new Set<string>();
+    const out: RecentSong[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== "object") continue;
+      const { id, title, artist } = item as Record<string, unknown>;
+      if (typeof id !== "string" || id === "" || typeof title !== "string" || seen.has(id)) continue;
+      seen.add(id);
+      out.push({ id, title, artist: typeof artist === "string" ? artist : "" });
+    }
+    return out.slice(0, MAX);
   } catch {
     return [];
   }

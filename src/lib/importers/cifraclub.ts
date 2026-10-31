@@ -5,12 +5,14 @@ import {
   guessOriginalKey,
   linesToBody,
   slugToTitleCase,
+  titleCase,
   ImportError,
   type ImportedSong,
 } from "@/lib/importers/shared";
+import { normalizeKeyHint } from "@/lib/importers/key";
 
-export async function importFromCifraClub(url: string): Promise<ImportedSong> {
-  const html = await fetchHtml(url);
+/** Parsea el HTML de una página de Cifra Club (separado de la descarga para poder testearlo). */
+export function parseCifraClubHtml(html: string, url: string): ImportedSong {
   const $ = cheerio.load(html);
 
   const pre = $('pre[data-chord-content="true"]').first();
@@ -24,7 +26,24 @@ export async function importFromCifraClub(url: string): Promise<ImportedSong> {
 
   const { title, artist } = extractTitleArtist($, url);
 
-  return { title, artist, originalKey: guessOriginalKey(body), body };
+  return { title, artist, originalKey: guessOriginalKey(body, extractKeyHint($)), body };
+}
+
+export async function importFromCifraClub(url: string): Promise<ImportedSong> {
+  const html = await fetchHtml(url);
+  return parseCifraClubHtml(html, url);
+}
+
+/**
+ * Cifra Club muestra el tono de la versión en el encabezado ("tom: G"), dentro
+ * de `#cifra_tom`. Si no está (o cambia el marcado) se devuelve null y se
+ * estima con los acordes. OJO: no pudimos verificarlo contra la página real
+ * (Cifra Club bloquea los pedidos sin navegador); por eso es solo una pista.
+ */
+function extractKeyHint($: cheerio.CheerioAPI): string | null {
+  const container = $("#cifra_tom").first();
+  if (container.length === 0) return null;
+  return normalizeKeyHint(container.find("a").first().text() || container.text().replace(/^\s*tom\s*:?/i, ""));
 }
 
 function extractTitleArtist(
@@ -66,7 +85,7 @@ function extractTitleArtist(
   // Último fallback: derivar del slug de la URL (/artista/cancion/).
   const segments = new URL(url).pathname.split("/").filter(Boolean);
   return {
-    title: title || slugToTitleCase(segments[1] ?? "Sin título"),
+    title: title || titleCase((segments[1] ?? "Sin título").replace(/[_-]+/g, " ")),
     artist: artist || slugToTitleCase(segments[0] ?? "Desconocido"),
   };
 }

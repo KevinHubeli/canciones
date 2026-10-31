@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/session";
 import { logAudit } from "@/lib/audit";
 import { normalizePlainChords } from "@/lib/chords";
 import { SONG_TAGS, NO_CHORDS_FILTER } from "@/lib/tags";
+import { parseBpm, parseIntParam, parseNotes } from "@/lib/validation";
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 500;
@@ -16,11 +17,9 @@ export async function GET(request: NextRequest) {
     .getAll("tag")
     .map((t) => t.trim())
     .filter((t) => ALL_FILTERS.includes(t));
-  const limit = Math.min(
-    MAX_LIMIT,
-    Math.max(1, Number(params.get("limit")) || DEFAULT_LIMIT)
-  );
-  const offset = Math.max(0, Number(params.get("offset")) || 0);
+  // Postgres rechaza decimales (y Infinity) como limit/offset: se sanean acá.
+  const limit = parseIntParam(params.get("limit"), { fallback: DEFAULT_LIMIT, min: 1, max: MAX_LIMIT });
+  const offset = parseIntParam(params.get("offset"), { fallback: 0, min: 0, max: 1_000_000 });
 
   try {
     const result = await listSongs({ q, tags, limit, offset });
@@ -46,6 +45,8 @@ export async function POST(request: NextRequest) {
     category?: unknown;
     tags?: unknown;
     body?: unknown;
+    bpm?: unknown;
+    notes?: unknown;
     force?: unknown;
   };
   try {
@@ -60,6 +61,10 @@ export async function POST(request: NextRequest) {
   if (typeof body.body !== "string" || !body.body.trim()) {
     return NextResponse.json({ error: "Falta la letra." }, { status: 400 });
   }
+  const bpm = parseBpm(body.bpm);
+  if (!bpm.ok) return NextResponse.json({ error: bpm.error }, { status: 400 });
+  const notes = parseNotes(body.notes);
+  if (!notes.ok) return NextResponse.json({ error: notes.error }, { status: 400 });
 
   try {
     // Evita cargar dos veces la misma canción; con force: true se guarda igual.
@@ -89,6 +94,8 @@ export async function POST(request: NextRequest) {
           )
         : [],
       body: normalizePlainChords(body.body),
+      bpm: bpm.value,
+      notes: notes.value,
     });
     await logAudit({ action: "create", entity: "song", entityId: song.id, title: song.title });
     return NextResponse.json({ song });

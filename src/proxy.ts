@@ -8,6 +8,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Primera barrera: solo firma, formato y vencimiento (sin tocar la base). Quién
+  // es la persona y si su sesión sigue vigente lo comprueba requireAdmin en cada página y API.
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const isValid = await verifySessionToken(token);
 

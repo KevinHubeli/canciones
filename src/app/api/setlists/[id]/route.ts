@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
+import { isUuid, parseNotes, parseServiceDate } from "@/lib/validation";
 import { deleteSetlist, getSetlist, updateSetlist } from "@/lib/setlists";
 import { logAudit } from "@/lib/audit";
 import { sanitizeDividers, type SetlistDivider } from "@/lib/dividers";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(
   _request: NextRequest,
@@ -14,7 +12,7 @@ export async function GET(
   // Ver un power puntual es público (por link, sin listar): así cualquier
   // músico puede abrirlo en su celular sin necesitar la clave de admin.
   const { id } = await params;
-  if (!UUID_RE.test(id)) {
+  if (!isUuid(id)) {
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
   }
   try {
@@ -37,11 +35,18 @@ export async function PATCH(
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
   const { id } = await params;
-  if (!UUID_RE.test(id)) {
+  if (!isUuid(id)) {
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
   }
 
-  let body: { title?: unknown; songIds?: unknown; transpose?: unknown; dividers?: unknown };
+  let body: {
+    title?: unknown;
+    songIds?: unknown;
+    transpose?: unknown;
+    dividers?: unknown;
+    serviceDate?: unknown;
+    notes?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -53,12 +58,14 @@ export async function PATCH(
     songIds: string[];
     transpose: Record<string, number>;
     dividers: SetlistDivider[];
+    serviceDate: string | null;
+    notes: string | null;
   }> = {};
   if (typeof body.title === "string" && body.title.trim()) update.title = body.title.trim();
   if (Array.isArray(body.songIds)) {
     update.songIds = [
       ...new Set(
-        body.songIds.filter((sid): sid is string => typeof sid === "string" && UUID_RE.test(sid))
+        body.songIds.filter((sid): sid is string => isUuid(sid))
       ),
     ];
   }
@@ -71,6 +78,16 @@ export async function PATCH(
       if (typeof value === "number" && Number.isFinite(value)) out[key] = Math.round(value);
     }
     update.transpose = out;
+  }
+  if (body.serviceDate !== undefined) {
+    const serviceDate = parseServiceDate(body.serviceDate);
+    if (!serviceDate.ok) return NextResponse.json({ error: serviceDate.error }, { status: 400 });
+    update.serviceDate = serviceDate.value;
+  }
+  if (body.notes !== undefined) {
+    const notes = parseNotes(body.notes);
+    if (!notes.ok) return NextResponse.json({ error: notes.error }, { status: 400 });
+    update.notes = notes.value;
   }
 
   try {
@@ -94,7 +111,7 @@ export async function DELETE(
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
   const { id } = await params;
-  if (!UUID_RE.test(id)) {
+  if (!isUuid(id)) {
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
   }
   try {

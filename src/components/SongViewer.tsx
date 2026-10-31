@@ -8,20 +8,35 @@ import {
   displayChord,
   normalizePlainChordLines,
   parseSongLine,
+  suggestCapo,
   type ChordNotation,
 } from "@/lib/chords";
 import ChordLine from "@/components/ChordLine";
 import FabMenu from "@/components/FabMenu";
 import ChordDiagramPopover from "@/components/ChordDiagramPopover";
 import { addRecentSong } from "@/lib/recentSongs";
-import { encodeDividers, type SetlistDivider } from "@/lib/dividers";
+import { type SetlistDivider } from "@/lib/dividers";
+import { songHref } from "@/lib/powerView";
 import { useStoredString, writeStored } from "@/lib/useStoredString";
+import { keepScreenAwake } from "@/lib/wakeLock";
+import {
+  AUTOSCROLL_SPEEDS_PX_PER_SEC,
+  DEFAULT_AUTOSCROLL_SPEED_INDEX,
+  DEFAULT_TEXT_SIZE_INDEX,
+  TEXT_SIZES_PX,
+  autoscrollStep,
+  capoSummary as buildCapoSummary,
+  clampCapo,
+  parseStoredIndex,
+  swipeDirection,
+} from "@/lib/viewerPrefs";
 
 const TEXT_SIZE_KEY = "cancionero:textSizeIndex";
+const AUTOSCROLL_SPEED_KEY = "cancionero:autoscrollSpeedIndex";
 // Constante: un [] nuevo en cada render haría que los efectos se rearmen todo el tiempo.
 const NO_DIVIDERS: SetlistDivider[] = [];
-const AUTOSCROLL_PX_PER_TICK = 2;
-const PREFERRED_PX = [14, 16, 19];
+// Dos toques seguidos a "siguiente" no tienen que saltear una canción.
+const NAV_COOLDOWN_MS = 600;
 
 export default function SongViewer({
   song,
@@ -43,11 +58,24 @@ export default function SongViewer({
   const router = useRouter();
   const [semitones, setSemitones] = useState(initialSemitones ?? 0);
   const [notation, setNotation] = useState<ChordNotation>("en");
-  // El tamaño de texto elegido se guarda en el navegador (ver useStoredString).
-  const storedSize = Number(useStoredString(TEXT_SIZE_KEY));
-  const textSizeIndex =
-    Number.isInteger(storedSize) && storedSize >= 0 && storedSize < PREFERRED_PX.length ? storedSize : 1;
-  const setTextSizeIndex = (index: number) => writeStored(TEXT_SIZE_KEY, String(index));
+  // El tamaño de texto y la velocidad del desfile elegidos se guardan en el navegador (ver useStoredString).
+  const textSizeIndex = parseStoredIndex(
+    useStoredString(TEXT_SIZE_KEY),
+    TEXT_SIZES_PX.length,
+    DEFAULT_TEXT_SIZE_INDEX
+  );
+  const setTextSizeIndex = (i: number) => writeStored(TEXT_SIZE_KEY, String(i));
+  const speedIndex = parseStoredIndex(
+    useStoredString(AUTOSCROLL_SPEED_KEY),
+    AUTOSCROLL_SPEEDS_PX_PER_SEC.length,
+    DEFAULT_AUTOSCROLL_SPEED_INDEX
+  );
+  const setSpeedIndex = (i: number) => writeStored(AUTOSCROLL_SPEED_KEY, String(i));
+  // Cejilla (capo): los acordes se muestran como se tocan con la cejilla en ese traste.
+  const [capo, setCapoRaw] = useState(0);
+  const setCapo = (n: number) => setCapoRaw(clampCapo(n));
+  const [wakeActive, setWakeActive] = useState(false);
+  const lastNavRef = useRef(0);
   // Al avanzar a una canción que abre una sección ("ALABANZA", "OFRENDA"...) se
   // muestra primero una pantalla con el nombre; un toque la cierra.
   const sectionIntro =
@@ -72,7 +100,20 @@ export default function SongViewer({
   const measureRef = useRef<HTMLSpanElement | null>(null);
 
   const lines = useMemo(() => normalizePlainChordLines(song.body), [song.body]);
-  const fontSizePx = PREFERRED_PX[textSizeIndex];
+  const fontSizePx = TEXT_SIZES_PX[textSizeIndex];
+  const shapeSemitones = semitones - capo;
+
+  // Sugerencia de cejilla: se calcula con los acordes que suenan (ya transpuestos).
+  const suggestedCapo = useMemo(() => {
+    const sounding = lines.flatMap((l) =>
+      parseSongLine(l).chords.map((c) => displayChord(c.chord, semitones, "en", song.originalKey))
+    );
+    return suggestCapo(sounding);
+  }, [lines, semitones, song.originalKey]);
+  const shapeKey = displayChord(song.originalKey, shapeSemitones, notation, song.originalKey);
+  const capoText = buildCapoSummary(capo, shapeKey);
+  const bpm = song.bpm ?? null;
+  const notes = song.notes?.trim() || null;
 
   // Ancho de columna "de lectura" ideal para esta canción en particular: la
   // línea más larga que tenga, así una canción de versos cortos usa menos
@@ -146,6 +187,9 @@ export default function SongViewer({
     addRecentSong({ id: song.id, title: song.title, artist: song.artist });
   }, [song.id, song.title, song.artist]);
 
+  // Que el celular no se apague en pleno culto (se vuelve a pedir al volver a la pestaña).
+  useEffect(() => keepScreenAwake(setWakeActive), []);
+
   // El desfile automático solo existe en vertical: en columnas queda apagado.
   const autoScrollActive = autoScroll && !isWide;
 
@@ -153,9 +197,29 @@ export default function SongViewer({
     if (!autoScrollActive) return;
     const el = scrollRef.current;
     if (!el) return;
-    const id = setInterval(() => el.scrollBy({ top: AUTOSCROLL_PX_PER_TICK }), 40);
-    return () => clearInterval(id);
-  }, [autoScrollActive]);
+    const speed = AUTOSCROLL_SPEEDS_PX_PER_SEC[speedIndex];
+    let pending = 0;
+    let last = performance.now();
+    let raf = 0;
+    // Con requestAnimationFrame y la fracción de píxel acumulada, las velocidades lentas
+    // (menos de 1px por cuadro) también avanzan parejo.
+    const tick = (now: number) => {
+      const step = autoscrollStep(pending, speed, now - last);
+      pending = step.pending;
+      last = now;
+      if (step.move > 0) {
+        el.scrollTop += step.move;
+        // Llegó al final de la canción: se apaga solo.
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) {
+          setAutoScroll(false);
+          return;
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [autoScrollActive, speedIndex]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -169,43 +233,74 @@ export default function SongViewer({
     };
   }, []);
 
+  // Ir a otra canción del power, ignorando un segundo toque pegado al primero.
+  function go(newIndex: number, forward = false) {
+    if (!setIds) return;
+    const now = Date.now();
+    if (now - lastNavRef.current < NAV_COOLDOWN_MS) return;
+    lastNavRef.current = now;
+    goTo(router, setIds, powerSemitones, newIndex, setDividers, forward);
+  }
+
   // Deslizar para pasar de canción dentro de un power (solo en vertical: en
   // modo columnas el deslizar horizontal ya se usa para recorrer el texto).
+  // Un scroll en diagonal, un gesto lento, un pellizco de zoom o deslizar con la
+  // pantalla ampliada no cuentan (ver swipeDirection).
+  const goRef = useRef(go);
+  useEffect(() => {
+    goRef.current = go;
+  });
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || isWide || !setIds || index === undefined) return;
 
-    const ids = setIds;
     const currentIndex = index;
     let startX = 0;
     let startY = 0;
+    let startTime = 0;
+    let maxTouches = 0;
     let tracking = false;
 
     function onStart(e: TouchEvent) {
-      const t = e.touches[0];
-      startX = t.clientX;
-      startY = t.clientY;
-      tracking = true;
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        startTime = Date.now();
+        maxTouches = 1;
+        tracking = true;
+      } else {
+        // Un segundo dedo (pellizco para hacer zoom): no es un deslizar.
+        maxTouches = Math.max(maxTouches, e.touches.length);
+      }
     }
     function onEnd(e: TouchEvent) {
-      if (!tracking) return;
+      if (!tracking || e.touches.length > 0) return;
       tracking = false;
       const t = e.changedTouches[0];
-      const dx = t.clientX - startX;
-      const dy = t.clientY - startY;
-      const SWIPE_THRESHOLD = 60;
-      if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-      if (dx < 0) goTo(router, ids, powerSemitones, currentIndex + 1, setDividers, true);
-      else goTo(router, ids, powerSemitones, currentIndex - 1, setDividers);
+      const direction = swipeDirection({
+        dx: t.clientX - startX,
+        dy: t.clientY - startY,
+        durationMs: Date.now() - startTime,
+        maxTouches,
+        pageScale: window.visualViewport?.scale ?? 1,
+      });
+      if (direction === "next") goRef.current(currentIndex + 1, true);
+      else if (direction === "prev") goRef.current(currentIndex - 1);
+    }
+    function onCancel() {
+      tracking = false;
     }
 
     el.addEventListener("touchstart", onStart, { passive: true });
     el.addEventListener("touchend", onEnd, { passive: true });
+    el.addEventListener("touchcancel", onCancel, { passive: true });
     return () => {
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onCancel);
     };
-  }, [isWide, setIds, powerSemitones, setDividers, index, router]);
+  }, [isWide, setIds, index]);
 
   return (
     <div className="flex h-[100dvh] flex-col">
@@ -216,10 +311,18 @@ export default function SongViewer({
         </span>
         <h1 className="font-display text-2xl text-mist">{song.title}</h1>
         <p className="mt-1 text-xs text-lilac-light">
-          Tono: {displayChord(song.originalKey, semitones, notation)}
+          Tono: {displayChord(song.originalKey, semitones, notation, song.originalKey)}
+          {bpm ? ` · ${bpm} BPM` : ""}
           {song.category ? ` · ${song.category}` : ""}
           {diagramMode ? " · Tocá un acorde para ver el diagrama" : ""}
         </p>
+        {capo > 0 && <p className="mt-0.5 text-xs font-medium text-chord-gold">{capoText}</p>}
+        {notes && (
+          <details className="mt-1 text-xs">
+            <summary className="cursor-pointer select-none text-lilac-light">Notas de la canción</summary>
+            <p className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap text-mist/90">{notes}</p>
+          </details>
+        )}
       </div>
 
       <div
@@ -229,6 +332,9 @@ export default function SongViewer({
         }`}
         style={{
           fontSize: `${fontSizePx}px`,
+          // Se puede hacer zoom con los dedos, pero el navegador solo se encarga del scroll
+          // vertical: el deslizar horizontal (siguiente/anterior) lo maneja el visor.
+          touchAction: isWide ? "pan-x pan-y pinch-zoom" : "pan-y pinch-zoom",
           ...(isWide && columnWidthPx && columnHeightPx
             ? {
                 columnWidth: `${columnWidthPx}px`,
@@ -255,8 +361,9 @@ export default function SongViewer({
           <ChordLine
             key={i}
             raw={line}
-            semitones={semitones}
+            semitones={shapeSemitones}
             notation={notation}
+            originalKey={song.originalKey}
             interactive={diagramMode}
             maxCharsPerRow={maxCharsPerRow}
           />
@@ -268,22 +375,33 @@ export default function SongViewer({
         onToggleMenu={() => setMenuOpen((v) => !v)}
         autoScroll={autoScrollActive}
         onToggleAutoScroll={() => setAutoScroll((v) => !v)}
+        autoScrollSpeedIndex={speedIndex}
+        autoScrollSpeedCount={AUTOSCROLL_SPEEDS_PX_PER_SEC.length}
+        onChangeAutoScrollSpeedIndex={setSpeedIndex}
         diagramMode={diagramMode}
         onToggleDiagramMode={() => setDiagramMode((v) => !v)}
         semitones={semitones}
         onChangeSemitones={setSemitones}
-        keyLabel={displayChord(song.originalKey, semitones, notation)}
+        keyLabel={displayChord(song.originalKey, semitones, notation, song.originalKey)}
+        capo={capo}
+        onChangeCapo={setCapo}
+        capoSummary={capoText}
+        suggestedCapo={suggestedCapo}
         notation={notation}
         onToggleNotation={() => setNotation((n) => (n === "en" ? "latin" : "en"))}
         textSizeIndex={textSizeIndex}
+        textSizeCount={TEXT_SIZES_PX.length}
+        fontSizePx={fontSizePx}
         onChangeTextSizeIndex={setTextSizeIndex}
         showAutoScroll={!isWide}
+        wakeState={wakeActive ? "on" : "off"}
       />
 
       {sectionIntro.length > 0 && !introDismissed && (
         <button
+          type="button"
           onClick={() => setIntroDismissed(true)}
-          aria-label="Empezar"
+          aria-label={`${sectionIntro.join(", ")}. Tocá para empezar`}
           className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-plum-deep px-6 text-center"
         >
           {sectionIntro.map((name) => (
@@ -303,25 +421,34 @@ export default function SongViewer({
       )}
 
       {setIds && setIds.length > 0 && index !== undefined && (
-        <div className="fixed bottom-24 left-4 z-40 flex items-center gap-2">
+        <div
+          role="group"
+          aria-label="Canciones del power"
+          className="fixed bottom-24 left-4 z-40 flex items-center gap-2"
+        >
           <button
-            onClick={() => goTo(router, setIds, powerSemitones, index - 1, setDividers)}
+            type="button"
+            onClick={() => go(index - 1)}
             disabled={index <= 0}
             aria-label="Canción anterior del power"
             className="flex h-12 w-12 items-center justify-center rounded-full bg-night/90 text-mist shadow-lg disabled:opacity-30"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={20} aria-hidden />
           </button>
-          <span className="rounded-full bg-night/90 px-3 py-1.5 text-xs text-lilac-light shadow-lg">
+          <span
+            aria-label={`Canción ${index + 1} de ${setIds.length}`}
+            className="rounded-full bg-night/90 px-3 py-1.5 text-xs text-lilac-light shadow-lg"
+          >
             {index + 1}/{setIds.length}
           </span>
           <button
-            onClick={() => goTo(router, setIds, powerSemitones, index + 1, setDividers, true)}
+            type="button"
+            onClick={() => go(index + 1, true)}
             disabled={index >= setIds.length - 1}
             aria-label="Canción siguiente del power"
             className="flex h-12 w-12 items-center justify-center rounded-full bg-night/90 text-mist shadow-lg disabled:opacity-30"
           >
-            <ChevronRight size={20} />
+            <ChevronRight size={20} aria-hidden />
           </button>
         </div>
       )}
@@ -337,11 +464,8 @@ function goTo(
   setDividers: SetlistDivider[] = [],
   forward = false
 ) {
-  if (newIndex < 0 || newIndex >= setIds.length) return;
-  const params = new URLSearchParams({ set: setIds.join(","), i: String(newIndex) });
-  if (setSemitones) params.set("t", setSemitones.join(","));
-  if (setDividers.length > 0) params.set("d", encodeDividers(setDividers));
+  // Mismo armado de URL que la página del power (así coincide con lo guardado para uso sin conexión).
   // Solo al avanzar se muestra la pantalla de la sección; al volver, no.
-  if (forward) params.set("s", "1");
-  router.push(`/canciones/${setIds[newIndex]}?${params}`);
+  const href = songHref({ ids: setIds, semitones: setSemitones, dividers: setDividers }, newIndex, forward);
+  if (href) router.push(href);
 }

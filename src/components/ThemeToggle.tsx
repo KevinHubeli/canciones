@@ -43,6 +43,7 @@ export default function ThemeToggle() {
   const isDark = theme === "dark";
   return (
     <button
+      type="button"
       onClick={toggle}
       aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lilac-light"

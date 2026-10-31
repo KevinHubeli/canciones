@@ -20,9 +20,19 @@ export default function LoginForm({ next }: { next: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 429) {
+        // El servidor dice cuánto falta; si no, un aviso genérico.
+        setError(data.error ?? "Demasiados intentos fallidos. Esperá unos minutos antes de probar de nuevo.");
+        return;
+      }
       if (!res.ok) {
-        setError(data.error ?? "No pudimos iniciar sesión.");
+        // Mismo texto para usuario inexistente y contraseña mala: no se revela cuáles usuarios hay.
+        setError(
+          res.status === 401
+            ? "Usuario o contraseña incorrectos."
+            : (data.error ?? "No pudimos iniciar sesión.")
+        );
         return;
       }
       router.push(next);
@@ -41,7 +51,11 @@ export default function LoginForm({ next }: { next: string }) {
         onChange={(e) => setUsername(e.target.value)}
         placeholder="Usuario"
         autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
         autoComplete="username"
+        name="username"
+        required
         className="rounded-2xl border border-plum bg-night/50 px-4 py-3 text-mist placeholder:text-lilac-light/70 focus:outline-none focus:ring-2 focus:ring-accent"
       />
       <input
@@ -50,9 +64,11 @@ export default function LoginForm({ next }: { next: string }) {
         type="password"
         placeholder="Contraseña"
         autoComplete="current-password"
+        name="password"
+        required
         className="rounded-2xl border border-plum bg-night/50 px-4 py-3 text-mist placeholder:text-lilac-light/70 focus:outline-none focus:ring-2 focus:ring-accent"
       />
-      {error && <p className="rounded-xl bg-accent/20 px-3 py-2 text-sm text-mist">{error}</p>}
+      {error && <p role="alert" className="rounded-xl bg-accent/20 px-3 py-2 text-sm text-mist">{error}</p>}
       <button
         type="submit"
         disabled={loading}

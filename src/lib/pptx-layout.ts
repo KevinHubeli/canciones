@@ -1,6 +1,7 @@
 import {
   normalizePlainChordLines,
   parseSongLine,
+  prefersFlats,
   toEnglishNotation,
   transposeChord,
   type ParsedChord,
@@ -119,14 +120,21 @@ function splitLongRawLine(raw: string, maxChars = MAX_LINE_CHARS): string[] {
  * Las líneas de letra muy largas se cortan al medio (ver splitLongRawLine).
  * Un bloque nunca se parte al paginar: el acorde siempre queda con su letra.
  */
-export function buildBlocks(body: string, semitones: number, maxChars = MAX_LINE_CHARS): Run[][] {
+export function buildBlocks(
+  body: string,
+  semitones: number,
+  maxChars = MAX_LINE_CHARS,
+  originalKey?: string
+): Run[][] {
+  // Con el tono original, los tonos bemol se escriben con bemoles (Bb, Eb, Ab).
+  const flats = originalKey ? prefersFlats(originalKey, semitones) : undefined;
   const blocks: Run[][] = [];
   for (const originalRaw of normalizePlainChordLines(body)) {
     for (const raw of splitLongRawLine(originalRaw, maxChars)) {
       const { lyrics, chords } = parseSongLine(raw);
       const block: Run[] = [];
       if (chords.length > 0) {
-        const named = chords.map((c) => ({ ...c, chord: transposeChord(toEnglishNotation(c.chord), semitones) }));
+        const named = chords.map((c) => ({ ...c, chord: transposeChord(toEnglishNotation(c.chord), semitones, flats) }));
         let chordLine: string;
         if (!lyrics.trim()) {
           // Línea solo de acordes (ej. intro): sin letra abajo para alinear,
@@ -150,8 +158,13 @@ export function buildBlocks(body: string, semitones: number, maxChars = MAX_LINE
   return blocks;
 }
 
-export function buildRuns(body: string, semitones: number, maxChars = MAX_LINE_CHARS): Run[] {
-  return buildBlocks(body, semitones, maxChars).flat();
+export function buildRuns(
+  body: string,
+  semitones: number,
+  maxChars = MAX_LINE_CHARS,
+  originalKey?: string
+): Run[] {
+  return buildBlocks(body, semitones, maxChars, originalKey).flat();
 }
 
 function isBlankBlock(block: Run[]): boolean {
@@ -233,8 +246,10 @@ export function charsPerLineAt(fontSize: number): number {
 
 type Candidate = { fontSize: number; maxChars: number; blocks: Run[][]; columns: Run[][]; pages: number };
 
-function candidateAt(body: string, semitones: number, fontSize: number, maxChars: number): Candidate {
-  const blocks = buildBlocks(body, semitones, maxChars);
+type BlocksFor = (maxChars: number) => Run[][];
+
+function candidateAt(blocksFor: BlocksFor, fontSize: number, maxChars: number): Candidate {
+  const blocks = blocksFor(maxChars);
   const columns = paginateBlocksAt(blocks, fontSize);
   return { fontSize, maxChars, blocks, columns, pages: Math.ceil(columns.length / 2) };
 }
@@ -255,20 +270,31 @@ const noWrapAt = (c: Candidate) =>
  */
 const SPLIT_GROWTH_STEPS = [2, Infinity];
 
-function chooseLayout(body: string, semitones: number): Candidate {
+function chooseLayout(body: string, semitones: number, originalKey?: string): Candidate {
+  // Los bloques solo dependen de maxChars, no del tamaño de letra: se arman una
+  // sola vez por valor (varios tamaños seguidos comparten el mismo corte de líneas).
+  const cache = new Map<number, Run[][]>();
+  const blocksFor: BlocksFor = (maxChars) => {
+    let blocks = cache.get(maxChars);
+    if (!blocks) {
+      blocks = buildBlocks(body, semitones, maxChars, originalKey);
+      cache.set(maxChars, blocks);
+    }
+    return blocks;
+  };
   const fontSizes = (from: number, to: number) =>
     Array.from({ length: Math.max(0, from - to + 1) }, (_, i) => from - i);
 
   // 1) líneas intactas
   for (const fontSize of fontSizes(MAX_FONT_SIZE, COMFORTABLE_FONT_SIZE)) {
-    const c = candidateAt(body, semitones, fontSize, MAX_LINE_CHARS);
+    const c = candidateAt(blocksFor, fontSize, MAX_LINE_CHARS);
     if (c.pages <= PREFERRED_PAGES_PER_SONG && noWrapAt(c)) return c;
   }
 
   // 2) cortando según el tamaño de letra
-  const originalLines = Math.max(1, buildBlocks(body, semitones, Infinity).length);
+  const originalLines = Math.max(1, blocksFor(Infinity).length);
   const comfortable = fontSizes(MAX_FONT_SIZE, COMFORTABLE_FONT_SIZE).map((fontSize) =>
-    candidateAt(body, semitones, fontSize, charsPerLineAt(fontSize))
+    candidateAt(blocksFor, fontSize, charsPerLineAt(fontSize))
   );
   for (const growth of SPLIT_GROWTH_STEPS) {
     for (const maxPages of [PREFERRED_PAGES_PER_SONG, MAX_PAGES_PER_SONG]) {
@@ -282,7 +308,7 @@ function chooseLayout(body: string, semitones: number): Candidate {
   // 3) letra más chica
   let last = comfortable[comfortable.length - 1];
   for (const fontSize of fontSizes(COMFORTABLE_FONT_SIZE - 1, MIN_FONT_SIZE)) {
-    const c = candidateAt(body, semitones, fontSize, charsPerLineAt(fontSize));
+    const c = candidateAt(blocksFor, fontSize, charsPerLineAt(fontSize));
     if (c.pages <= MAX_PAGES_PER_SONG) return c;
     last = c;
   }
@@ -291,12 +317,48 @@ function chooseLayout(body: string, semitones: number): Candidate {
 
 /** Arma las páginas (de a 2 columnas) para una canción completa, con el
  * tamaño de letra más grande que respeta el máximo de hojas por canción. */
-export function paginateSong(body: string, semitones: number): SongLayout {
-  const { fontSize, maxChars, columns } = chooseLayout(body, semitones);
+export function paginateSong(body: string, semitones: number, originalKey?: string): SongLayout {
+  const { fontSize, maxChars, columns } = chooseLayout(body, semitones, originalKey);
   const pages = chunkPairs(columns);
   return {
     fontSize,
     maxChars,
     pages: pages.map((cols, idx) => ({ columns: cols, index: idx, count: pages.length })),
   };
+}
+
+/**
+ * Nombre de archivo para la descarga del PPTX. Devuelve el nombre ASCII de
+ * respaldo (`filename="..."`, sin tildes: "Adoración" => "Adoracion") y el
+ * nombre completo con tildes y ñ para `filename*=UTF-8''...` (RFC 5987).
+ * Solo se sacan los caracteres que los sistemas de archivos no admiten.
+ */
+export function pptxFileNames(title: string): { ascii: string; unicode: string } {
+  const unicode =
+    title
+      .normalize("NFC")
+      .replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 100)
+      .trim() || "power";
+  const ascii =
+    unicode
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9 _.()-]/g, "")
+      .replace(/\s+/g, " ")
+      .trim() || "power";
+  return { ascii: `${ascii}.pptx`, unicode: `${unicode}.pptx` };
+}
+
+/** Valor del header Content-Disposition para descargar el PPTX (con respaldo ASCII y filename* UTF-8). */
+export function pptxContentDisposition(title: string): string {
+  const { ascii, unicode } = pptxFileNames(title);
+  // encodeURIComponent deja pasar ' ( ) *, que RFC 5987 no permite sin escapar.
+  const encoded = encodeURIComponent(unicode).replace(
+    /['()*]/g,
+    (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase()
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }

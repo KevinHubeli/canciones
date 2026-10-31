@@ -1,3 +1,6 @@
+import { UUID_RE } from "@/lib/validation";
+import { cache } from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Download } from "lucide-react";
@@ -16,8 +19,6 @@ import {
   TEXT_INSET_Y_IN,
 } from "@/lib/pptx-layout";
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Todo se dibuja en proporciones de la diapositiva (pulgadas y puntos del
 // PowerPoint), así la vista previa escala igual en un celular y en una compu.
@@ -114,6 +115,19 @@ function SlideView({ slide }: { slide: Slide }) {
   );
 }
 
+// generateMetadata y la página piden el mismo power: con cache() se lee una sola vez por pedido.
+const loadSetlist = cache((id: string) => getSetlist(id).catch(() => null));
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const setlist = UUID_RE.test(id) ? await loadSetlist(id) : null;
+  return { title: setlist ? `Vista previa · ${setlist.title}` : "Power no encontrado" };
+}
+
 export default async function PowerPreviewPage({
   params,
 }: {
@@ -121,7 +135,7 @@ export default async function PowerPreviewPage({
 }) {
   const { id } = await params;
   if (!UUID_RE.test(id)) notFound();
-  const setlist = await getSetlist(id).catch(() => null);
+  const setlist = await loadSetlist(id);
   if (!setlist) notFound();
 
   const slides = await buildSlides(setlist);

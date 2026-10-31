@@ -4,6 +4,8 @@ import { createPortal } from "react-dom";
 import { useState } from "react";
 import { X } from "lucide-react";
 import {
+  diagramBaseFret,
+  diagramRows,
   getBassDiagram,
   getGuitarDiagram,
   getKeyboardDiagram,
@@ -62,7 +64,9 @@ export default function ChordDiagramPopover({
 
             {instrument === "guitar" && guitar && <FretDiagram frets={guitar.frets} />}
             {instrument === "bass" && bass && <FretDiagram frets={bass.frets} />}
-            {instrument === "keyboard" && keyboard && <PianoDiagram activeKeys={keyboard.activeKeys} />}
+            {instrument === "keyboard" && keyboard && (
+              <PianoDiagram activeKeys={keyboard.activeKeys} bassKey={keyboard.bassKey} />
+            )}
           </>
         )}
       </div>
@@ -98,11 +102,12 @@ function Tab({
 function FretDiagram({ frets }: { frets: FretDiagramData["frets"] }) {
   const stringGap = 20;
   const width = stringGap * (frets.length - 1);
-  const height = 120;
-  const fretGap = height / 4;
-
-  const fretsUsed = frets.filter((f) => f > 0);
-  const baseFret = fretsUsed.length ? Math.min(...fretsUsed) : 1;
+  const fretGap = 30;
+  // Con cuerdas al aire (o si entra en los primeros trastes) se dibuja desde el
+  // 1 con la cejuela gruesa; si no, desde el traste más bajo, con su número.
+  const baseFret = diagramBaseFret(frets);
+  const rows = diagramRows(frets);
+  const height = fretGap * rows;
 
   return (
     <svg viewBox={`-10 -14 ${width + 24} ${height + 20}`} className="mx-auto h-44 w-full max-w-[180px]">
@@ -117,7 +122,7 @@ function FretDiagram({ frets }: { frets: FretDiagramData["frets"] }) {
           strokeWidth={1}
         />
       ))}
-      {[0, 1, 2, 3, 4].map((f) => (
+      {Array.from({ length: rows + 1 }, (_, f) => f).map((f) => (
         <line
           key={`fret-${f}`}
           x1={0}
@@ -156,12 +161,21 @@ const WHITE_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
 // Semitono de la tecla negra que va justo después de cada tecla blanca (null = no hay negra ahí).
 const BLACK_AFTER_WHITE: (number | null)[] = [1, 3, null, 6, 8, 10, null];
 
-function PianoDiagram({ activeKeys }: { activeKeys: KeyboardDiagramData["activeKeys"] }) {
+function PianoDiagram({
+  activeKeys,
+  bassKey,
+}: {
+  activeKeys: KeyboardDiagramData["activeKeys"];
+  bassKey?: KeyboardDiagramData["bassKey"];
+}) {
   const whiteWidth = 24;
   const whiteHeight = 90;
   const blackWidth = 14;
   const blackHeight = 55;
   const isActive = (semitone: number) => activeKeys.includes(semitone);
+  // En un acorde con bajo ("D/F#") la nota del bajo se marca con otro color.
+  const keyColor = (semitone: number, idle: string) =>
+    semitone === bassKey ? "#e0a030" : isActive(semitone) ? "#ff5a3c" : idle;
 
   return (
     <svg
@@ -175,7 +189,7 @@ function PianoDiagram({ activeKeys }: { activeKeys: KeyboardDiagramData["activeK
           y={0}
           width={whiteWidth}
           height={whiteHeight}
-          fill={isActive(semitone) ? "#ff5a3c" : "#f2f2f0"}
+          fill={keyColor(semitone, "#f2f2f0")}
           stroke="#2e2e31"
           strokeWidth={1}
         />
@@ -190,7 +204,7 @@ function PianoDiagram({ activeKeys }: { activeKeys: KeyboardDiagramData["activeK
             y={0}
             width={blackWidth}
             height={blackHeight}
-            fill={isActive(blackSemitone) ? "#ff5a3c" : "#0a0a0b"}
+            fill={keyColor(blackSemitone, "#0a0a0b")}
             stroke="#2e2e31"
             strokeWidth={1}
           />

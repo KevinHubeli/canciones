@@ -4,9 +4,10 @@ import {
   SESSION_COOKIE,
   createSessionToken,
   sessionCookieOptions,
+  type SessionSubject,
 } from "@/lib/session";
-import { verifyUser } from "@/lib/users";
-import { clearAttempts, clientIp, isRateLimited, registerFailedAttempt } from "@/lib/rateLimit";
+import { normalizeUsername, verifyUser } from "@/lib/users";
+import { clientIp, getLoginLimiter } from "@/lib/rateLimit";
 
 // Comparación en tiempo constante (se comparan los hashes, que tienen siempre el mismo largo).
 function safeEqual(a: string, b: string): boolean {
@@ -15,26 +16,31 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ha, hb);
 }
 
-/** El dueño (variables de entorno) o un usuario de la base. Siempre se evalúan los dos caminos. */
-async function isValidLogin(
+/**
+ * El dueño (variables de entorno) o un usuario de la base. Siempre se evalúan
+ * los dos caminos, para que el tiempo de respuesta no delate cuál existe.
+ */
+async function authenticate(
   username: string,
   password: string,
   adminUser: string,
   adminPassword: string
-): Promise<boolean> {
+): Promise<SessionSubject | null> {
   const ownerOk = safeEqual(username, adminUser) && safeEqual(password, adminPassword);
-  const userOk = await verifyUser(username, password);
-  return ownerOk || userOk;
+  // Si la base no responde, el dueño igual tiene que poder entrar (y los demás no).
+  const user = await verifyUser(username, password).catch((err) => {
+    console.error("No se pudo verificar al usuario en la base:", err);
+    return null;
+  });
+  if (ownerOk) return { kind: "owner", username: adminUser, password: adminPassword };
+  if (user) {
+    return { kind: "user", username: user.username, uid: user.id, passwordHash: user.passwordHash };
+  }
+  return null;
 }
 
 export async function POST(request: NextRequest) {
   const ip = clientIp(request);
-  if (isRateLimited(ip)) {
-    return NextResponse.json(
-      { error: "Demasiados intentos. Probá de nuevo en unos minutos." },
-      { status: 429 }
-    );
-  }
 
   let body: { username?: unknown; password?: unknown };
   try {
@@ -54,22 +60,40 @@ export async function POST(request: NextRequest) {
   }
 
   const { username, password } = body;
-  if (
-    typeof username !== "string" ||
-    typeof password !== "string" ||
-    !(await isValidLogin(username.trim(), password, adminUser, adminPassword))
-  ) {
-    registerFailedAttempt(ip);
+  const typedUser = typeof username === "string" ? username.trim() : "";
+  // El tope por usuario cuenta lo que se tipeó, exista o no ese usuario: no revela cuáles hay.
+  const limitUser = typedUser ? normalizeUsername(typedUser) : null;
+
+  const limiter = getLoginLimiter();
+  const limit = await limiter.check(ip, limitUser);
+  if (limit.limited) {
+    const minutes = Math.ceil(limit.retryAfterSeconds / 60);
+    return NextResponse.json(
+      {
+        error: `Demasiados intentos fallidos. Esperá ${minutes === 1 ? "1 minuto" : `${minutes} minutos`} antes de probar de nuevo.`,
+        retryAfterSeconds: limit.retryAfterSeconds,
+      },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
+  }
+
+  const subject =
+    typeof username === "string" && typeof password === "string"
+      ? await authenticate(typedUser, password, adminUser, adminPassword)
+      : null;
+
+  if (!subject) {
+    await limiter.registerFailure(ip, limitUser);
     return NextResponse.json(
       { error: "Usuario o contraseña incorrectos." },
       { status: 401 }
     );
   }
 
-  clearAttempts(ip);
-  // La sesión queda a nombre de quien entró: el dueño o un usuario de la base.
-  const sessionName = safeEqual(username.trim(), adminUser) ? adminUser : username.trim().toLowerCase();
-  const token = await createSessionToken(sessionName);
+  await limiter.clear(ip, limitUser).catch((err) => {
+    console.error("No se pudieron limpiar los intentos de login:", err);
+  });
+  const token = await createSessionToken(subject);
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
   return response;

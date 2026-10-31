@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
+import { isUuid } from "@/lib/validation";
 import { logAudit } from "@/lib/audit";
 import { createSetlist, getSetlist } from "@/lib/setlists";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Crea una copia del power (mismas canciones, tonos y divisores) para armar uno nuevo a partir de él. */
 export async function POST(
@@ -15,7 +13,7 @@ export async function POST(
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
   const { id } = await params;
-  if (!UUID_RE.test(id)) {
+  if (!isUuid(id)) {
     return NextResponse.json({ error: "No encontramos ese power." }, { status: 404 });
   }
 
@@ -32,6 +30,8 @@ export async function POST(
       songIds: original.songs.map((s) => s.id),
       transpose,
       dividers: original.dividers,
+      serviceDate: original.serviceDate,
+      notes: original.notes,
     });
     await logAudit({ action: "duplicate", entity: "setlist", entityId: copy.id, title: original.title });
     return NextResponse.json({ setlist: copy });

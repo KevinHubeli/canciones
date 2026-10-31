@@ -1,13 +1,19 @@
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { setlists, songs, type SetlistRow } from "@/db/schema";
+import { setlists } from "@/db/schema";
 import type { SongSummary } from "@/lib/types";
 import { sanitizeDividers, type SetlistDivider } from "@/lib/dividers";
+import { readTranspose } from "@/lib/setlistData";
+import { getSongSummariesByIds } from "@/lib/songs";
 
 export type SetlistSummary = {
   id: string;
   title: string;
+  /** Solo cuenta canciones que existen y no están en la papelera. */
   songCount: number;
+  /** Fecha del culto ("YYYY-MM-DD"), si se cargó. */
+  serviceDate: string | null;
+  notes: string | null;
   updatedAt: string;
 };
 
@@ -18,75 +24,88 @@ export type Setlist = {
   title: string;
   songs: SetlistSong[];
   dividers: SetlistDivider[];
+  serviceDate: string | null;
+  notes: string | null;
   updatedAt: string;
 };
 
-function toSummary(row: SetlistRow): SetlistSummary {
+// Cuenta solo las canciones vivas. Va con nombres de tabla escritos a mano (y
+// no con las columnas de drizzle) para que sirva igual en select y en returning.
+const SONG_COUNT_SQL = sql<number>`(
+  SELECT count(*)::int FROM songs
+  WHERE songs.id = ANY(setlists.song_ids) AND songs.deleted_at IS NULL
+)`;
+
+const summaryColumns = {
+  id: setlists.id,
+  title: setlists.title,
+  serviceDate: setlists.serviceDate,
+  notes: setlists.notes,
+  updatedAt: setlists.updatedAt,
+  songCount: SONG_COUNT_SQL,
+};
+
+type SummaryRow = {
+  id: string;
+  title: string;
+  serviceDate: string | null;
+  notes: string | null;
+  updatedAt: Date;
+  songCount: number;
+};
+
+function toSummary(row: SummaryRow): SetlistSummary {
   return {
     id: row.id,
     title: row.title,
-    songCount: row.songIds.length,
+    songCount: Number(row.songCount),
+    serviceDate: row.serviceDate,
+    notes: row.notes,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
 
-function transposeMap(row: SetlistRow): Record<string, number> {
-  const raw = row.transpose;
-  if (!raw || typeof raw !== "object") return {};
-  return raw as Record<string, number>;
-}
-
+/** Primero los powers con fecha de culto más reciente (los que no tienen, al final), después los editados hace menos. */
 export async function listSetlists(): Promise<SetlistSummary[]> {
-  const rows = await getDb().select().from(setlists).orderBy(desc(setlists.updatedAt));
+  const rows = await getDb()
+    .select(summaryColumns)
+    .from(setlists)
+    .orderBy(sql`${setlists.serviceDate} DESC NULLS LAST`, desc(setlists.updatedAt));
   return rows.map(toSummary);
 }
 
 export async function getSetlist(id: string): Promise<Setlist | null> {
-  const db = getDb();
-  const [row] = await db.select().from(setlists).where(eq(setlists.id, id));
+  const [row] = await getDb().select().from(setlists).where(eq(setlists.id, id));
   if (!row) return null;
 
-  if (row.songIds.length === 0) {
-    return {
-      id: row.id,
-      title: row.title,
-      songs: [],
-      dividers: sanitizeDividers(row.dividers, 0),
-      updatedAt: row.updatedAt.toISOString(),
-    };
-  }
-
-  const transpose = transposeMap(row);
-  const songRows = await db.select().from(songs).where(inArray(songs.id, row.songIds));
-  const byId = new Map(songRows.map((s) => [s.id, s]));
-  const ordered = row.songIds
-    .map((id) => byId.get(id))
-    .filter((s): s is NonNullable<typeof s> => Boolean(s))
-    .map((s) => ({
-      id: s.id,
-      title: s.title,
-      artist: s.artist,
-      originalKey: s.originalKey,
-      category: s.category,
-      tags: s.tags,
-      updatedAt: s.updatedAt.toISOString(),
-      semitones: transpose[s.id] ?? 0,
-    }));
-
-  // Si alguna canción se borró de la base, los divisores se corren para seguir
-  // en el mismo lugar relativo a las canciones que quedan.
-  const dividers = sanitizeDividers(row.dividers, row.songIds.length).map((d) => ({
-    ...d,
-    position: row.songIds.slice(0, d.position).filter((id) => byId.has(id)).length,
-  }));
-
-  return {
+  const base = {
     id: row.id,
     title: row.title,
-    songs: ordered,
-    dividers,
+    serviceDate: row.serviceDate,
+    notes: row.notes,
     updatedAt: row.updatedAt.toISOString(),
   };
+
+  if (row.songIds.length === 0) {
+    return { ...base, songs: [], dividers: sanitizeDividers(row.dividers, 0) };
+  }
+
+  const transpose = readTranspose(row.transpose);
+  const songRows = await getSongSummariesByIds(row.songIds);
+  const byId = new Map(songRows.map((s) => [s.id, s]));
+  const ordered = row.songIds
+    .map((songId) => byId.get(songId))
+    .filter((s): s is SongSummary => Boolean(s))
+    .map((s) => ({ ...s, semitones: transpose[s.id] ?? 0 }));
+
+  // Si alguna canción se borró (o está en la papelera), los divisores se corren
+  // para seguir en el mismo lugar relativo a las canciones que quedan.
+  const dividers = sanitizeDividers(row.dividers, row.songIds.length).map((d) => ({
+    ...d,
+    position: row.songIds.slice(0, d.position).filter((songId) => byId.has(songId)).length,
+  }));
+
+  return { ...base, songs: ordered, dividers };
 }
 
 export async function createSetlist(input: {
@@ -94,11 +113,13 @@ export async function createSetlist(input: {
   songIds: string[];
   transpose?: Record<string, number>;
   dividers?: SetlistDivider[];
+  serviceDate?: string | null;
+  notes?: string | null;
 }): Promise<SetlistSummary> {
   const [row] = await getDb()
     .insert(setlists)
     .values({ ...input, transpose: input.transpose ?? {}, dividers: input.dividers ?? [] })
-    .returning();
+    .returning(summaryColumns);
   return toSummary(row);
 }
 
@@ -109,13 +130,15 @@ export async function updateSetlist(
     songIds: string[];
     transpose: Record<string, number>;
     dividers: SetlistDivider[];
+    serviceDate: string | null;
+    notes: string | null;
   }>
 ): Promise<SetlistSummary | null> {
   const [row] = await getDb()
     .update(setlists)
     .set({ ...input, updatedAt: sql`now()` })
     .where(eq(setlists.id, id))
-    .returning();
+    .returning(summaryColumns);
   return row ? toSummary(row) : null;
 }
 
@@ -141,23 +164,12 @@ export async function getRecentlyUsedSongs(limit = 20): Promise<RecentlyUsedSong
   }
   if (lastUse.size === 0) return [];
 
-  const ids = [...lastUse.keys()];
-  const songRows = await db.select().from(songs).where(inArray(songs.id, ids));
+  const songRows = await getSongSummariesByIds([...lastUse.keys()]);
 
   return songRows
     .map((s) => {
       const meta = lastUse.get(s.id)!;
-      return {
-        id: s.id,
-        title: s.title,
-        artist: s.artist,
-        originalKey: s.originalKey,
-        category: s.category,
-        tags: s.tags,
-        updatedAt: s.updatedAt.toISOString(),
-        lastUsedIn: meta.setlistTitle,
-        lastUsedAt: meta.updatedAt.toISOString(),
-      };
+      return { ...s, lastUsedIn: meta.setlistTitle, lastUsedAt: meta.updatedAt.toISOString() };
     })
     .sort((a, b) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime())
     .slice(0, limit);
@@ -175,7 +187,7 @@ export async function getLastTones(excludeId?: string): Promise<Record<string, L
   const result: Record<string, LastTone> = {};
   for (const row of rows) {
     if (row.id === excludeId) continue;
-    const transpose = transposeMap(row);
+    const transpose = readTranspose(row.transpose);
     for (const songId of row.songIds) {
       if (!(songId in result)) {
         result[songId] = { semitones: transpose[songId] ?? 0, setlistTitle: row.title };

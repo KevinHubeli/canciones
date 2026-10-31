@@ -1,5 +1,36 @@
 # Especificación: "Cancionero", cancionero de acordes propio (tipo lacuerda.net)
 
+> ## Nota: esto es la especificación ORIGINAL
+> Este documento es el plan con el que se construyó la primera versión de la app. **No describe el estado actual**:
+> el código creció bastante desde entonces. Para saber cómo está hoy, mirá el [`README.md`](./README.md)
+> (rutas, variables de entorno, migraciones, respaldo, seguridad) y [`e2e/README.md`](./e2e/README.md) (contratos
+> de la API). Lo de abajo se deja como referencia histórica del diseño (el formato `[Acorde]letra`, el menú
+> flotante, la transposición y los diagramas siguen valiendo tal cual).
+>
+> **Qué cambió desde esta especificación:**
+> - **Usuarios múltiples.** Ya no hay un solo admin: el *dueño* (`ADMIN_USER` / `ADMIN_PASSWORD`) administra a los demás
+>   (`/admin/usuarios`) y cada integrante del equipo tiene su usuario guardado en la base (contraseña con scrypt),
+>   con cambio de contraseña propio (`/admin/cuenta`). La sesión queda atada a la contraseña.
+> - **Rate limit en la base.** El límite de intentos de login ya no es "en memoria por instancia": vive en la tabla
+>   `login_attempts` (por IP y por usuario) y responde `429` con `Retry-After`.
+> - **Powers (setlists).** Se pueden armar listas de canciones para cada culto, con el tono de cada una, **divisores de
+>   sección** (ALABANZA, ADORACIÓN, OFRENDA...), copiar un power, ver el **último tono** usado de cada canción,
+>   **vista previa** de las diapositivas, **exportación a PowerPoint** y modo presentación con pantalla de sección.
+>   También pueden llevar fecha de culto y notas.
+> - **Historial de cambios.** El log de auditoría (`/admin/historial`) anota quién creó, editó, copió o borró qué.
+> - **Historial de versiones por canción.** Cada edición guarda el estado anterior (hasta 30 por canción) y se puede volver
+>   a cualquiera.
+> - **Papelera.** Borrar una canción la manda a la papelera (`/admin/papelera`): se restaura o se vacía.
+> - **Respaldo.** El dueño descarga y restaura un `.json` completo (`/admin/respaldo`; la restauración fusiona, no borra).
+> - **Canciones:** etiquetas (Alabanza, Adoración, Ministración, Ofrenda) y el filtro "Sin acordes", tempo (BPM) y notas
+>   para el equipo, aviso de títulos repetidos y pantalla de **duplicadas**, aviso de líneas "basura" al pegar desde una
+>   página web, texto plano con acordes arriba que se convierte solo al formato con corchetes (incluidas intros y puentes).
+> - **Búsqueda** con `pg_trgm` y `unaccent` (tolera tildes y errores de tipeo) en lugar del `ILIKE` simple.
+> - **Importadores:** además de importar de a una, búsqueda automática de acordes para canciones que solo tienen letra
+>   (`/admin/auto-acordes`) e importación por lote; hostname estricto.
+> - **PWA** con uso sin conexión (service worker que nunca guarda lo del admin) y **estadísticas** (`/admin/estadisticas`).
+> - **Calidad:** tests unitarios (`npm test`), tests e2e autosuficientes con guardas de seguridad (`e2e/`) y CI en GitHub Actions.
+
 > **Para quién es:** un agente (Claude) que tiene que construir esta app **desde cero** en un repositorio nuevo (no es parte de "Nacidas para este tiempo" ni la modifica).
 > **Qué es:** un sitio donde **nosotros cargamos nuestros propios temas** (letra + acordes, como en la imagen de referencia: línea de acordes arriba, línea de letra abajo) y cualquiera los puede buscar y tocar/cantar desde el celular, con las mismas herramientas que un cancionero de acordes clásico: **mostrar/ocultar menú, desfile automático, diagramas de acordes, cambio de tono, notación inglés/latino (C↔Do) y formato del texto**.
 > **No hay archivos de audio ni de imagen que subir**: todo el contenido es texto (letra + acordes), así que **no hace falta Vercel Blob**. Solo Next.js + Neon + Drizzle.

@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
-import { importFromCifraClub } from "@/lib/importers/cifraclub";
-import { importFromLaCuerda } from "@/lib/importers/lacuerda";
-import { ImportError } from "@/lib/importers/shared";
+import { importFromUrl } from "@/lib/importers";
+import { ImportError, NetworkImportError } from "@/lib/importers/shared";
 
-// Coincidencia estricta: "lacuerda.net.evil.com" o "evil.com/lacuerda.net" no pasan.
-function isHostOf(host: string, domain: string): boolean {
-  return host === domain || host.endsWith(`.${domain}`);
-}
+export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
   if (!(await requireAdmin())) {
@@ -24,28 +20,18 @@ export async function POST(request: NextRequest) {
   if (typeof body.url !== "string" || !body.url.trim()) {
     return NextResponse.json({ error: "Falta la URL a importar." }, { status: 400 });
   }
-
-  let host: string;
-  try {
-    host = new URL(body.url).hostname;
-  } catch {
+  if (body.url.length > 500) {
     return NextResponse.json({ error: "Esa URL no es válida." }, { status: 400 });
   }
 
   try {
-    if (isHostOf(host, "cifraclub.com") || isHostOf(host, "cifraclub.com.br")) {
-      const song = await importFromCifraClub(body.url);
-      return NextResponse.json(song);
-    }
-    if (isHostOf(host, "lacuerda.net")) {
-      const song = await importFromLaCuerda(body.url);
-      return NextResponse.json(song);
-    }
-    return NextResponse.json(
-      { error: "Solo se puede importar desde Cifra Club o LaCuerda." },
-      { status: 400 }
-    );
+    const song = await importFromUrl(body.url);
+    return NextResponse.json(song);
   } catch (err) {
+    // No pudimos conectarnos (red, timeout, error del sitio): se puede reintentar.
+    if (err instanceof NetworkImportError) {
+      return NextResponse.json({ error: err.message }, { status: 502 });
+    }
     if (err instanceof ImportError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }

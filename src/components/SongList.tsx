@@ -10,6 +10,12 @@ import { RECENT_KEY, parseRecentSongs } from "@/lib/recentSongs";
 import { useStoredString } from "@/lib/useStoredString";
 
 const PAGE_SIZE = 24;
+// Reintentos automáticos tras un fallo (1s, 2s, 4s); después queda el botón "Reintentar".
+const MAX_AUTO_RETRIES = 3;
+const RETRY_BASE_MS = 1000;
+
+// "more": falló al cargar más (ya hay canciones en pantalla) y no la búsqueda entera.
+type LoadError = { message: string; more: boolean };
 const ALL_FILTERS: string[] = [...SONG_TAGS, NO_CHORDS_FILTER];
 
 export default function SongList() {
@@ -19,13 +25,17 @@ export default function SongList() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LoadError | null>(null);
+  // Fallos seguidos: mide el backoff y corta los reintentos automáticos.
+  const [failures, setFailures] = useState(0);
   const recentRaw = useStoredString(RECENT_KEY);
   const recent = useMemo(() => parseRecentSongs(recentRaw), [recentRaw]);
   const loadingRef = useRef(false);
   // Número de la última búsqueda: una respuesta vieja (de lo que se tipeó antes) se descarta.
   const searchIdRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  // Lo último que se buscó, para que el reintento no use valores viejos.
+  const latestRef = useRef({ query: "", tags: [] as string[], count: 0 });
 
   const load = useCallback(async (q: string, tags: string[], offset: number) => {
     // "Cargar más" no se pisa a sí mismo, pero una búsqueda nueva siempre arranca.
@@ -47,11 +57,24 @@ export default function SongList() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       if (searchId !== searchIdRef.current) return;
+      setFailures(0);
       setSongs((prev) => (offset === 0 ? data.songs : [...prev, ...data.songs]));
       setHasMore(Boolean(data.hasMore));
     } catch {
       if (searchId !== searchIdRef.current) return;
-      setError("No pudimos cargar las canciones. Probá de nuevo en un rato.");
+      setFailures((n) => n + 1);
+      if (offset === 0) {
+        // Sin esto quedaría en pantalla el resultado de la búsqueda anterior, que no corresponde.
+        setSongs([]);
+        setHasMore(false);
+      }
+      setError({
+        message:
+          typeof navigator !== "undefined" && navigator.onLine === false
+            ? "Sin conexión. Cuando vuelva internet probamos de nuevo."
+            : "No pudimos cargar las canciones.",
+        more: offset > 0,
+      });
     } finally {
       if (searchId === searchIdRef.current) {
         loadingRef.current = false;
@@ -61,26 +84,55 @@ export default function SongList() {
     }
   }, []);
 
+  useEffect(() => {
+    latestRef.current = { query: query.trim(), tags: activeTags, count: songs.length };
+  });
+
   // Debounce de la búsqueda: espera a que el usuario deje de tipear.
   useEffect(() => {
-    const id = setTimeout(() => load(query.trim(), activeTags, 0), 300);
+    const id = setTimeout(() => {
+      setFailures(0);
+      load(query.trim(), activeTags, 0);
+    }, 300);
     return () => clearTimeout(id);
   }, [query, activeTags, load]);
 
+  // Reintenta lo que falló: la búsqueda entera, o la página siguiente si ya había canciones.
+  const retry = useCallback(() => {
+    const { query: q, tags, count } = latestRef.current;
+    load(q, tags, error?.more ? count : 0);
+  }, [load, error?.more]);
+
   useEffect(() => {
-    if (!sentinelRef.current || !hasMore) return;
+    // Con un error pendiente NO se observa: al fallar, el observador se recrearía,
+    // volvería a disparar la carga y se armaría un bucle de pedidos fallidos.
+    if (!sentinelRef.current || !hasMore || error) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !loadingMore && !initialLoading) {
-          load(query.trim(), activeTags, songs.length);
+          const { query: q, tags, count } = latestRef.current;
+          load(q, tags, count);
         }
       },
       { rootMargin: "600px" }
     );
     observer.observe(sentinelRef.current);
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore, loadingMore, initialLoading, songs.length]);
+  }, [hasMore, loadingMore, initialLoading, songs.length, error, load]);
+
+  // Backoff: unos pocos reintentos automáticos y después espera al botón.
+  useEffect(() => {
+    if (!error || failures === 0 || failures > MAX_AUTO_RETRIES) return;
+    const id = setTimeout(retry, RETRY_BASE_MS * 2 ** (failures - 1));
+    return () => clearTimeout(id);
+  }, [error, failures, retry]);
+
+  // Si vuelve internet, se reintenta enseguida.
+  useEffect(() => {
+    if (!error) return;
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [error, retry]);
 
   function toggleTag(tag: string) {
     setActiveTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
@@ -91,22 +143,26 @@ export default function SongList() {
       <div className="relative mb-4">
         <Search
           size={18}
+          aria-hidden
           className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lilac-light"
         />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          type="search"
+          aria-label="Buscar canciones por título o artista"
           placeholder="Buscar por título o artista..."
-          className="w-full rounded-full border border-plum bg-night/50 py-3 pl-11 pr-4 text-sm text-mist placeholder:text-lilac-light/70 focus:outline-none focus:ring-2 focus:ring-accent"
+          className="w-full rounded-full border border-plum bg-night/50 py-3 pl-11 pr-4 text-sm text-mist placeholder:text-lilac-light focus:outline-none focus:ring-2 focus:ring-accent"
         />
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div role="group" aria-label="Filtrar por tipo" className="mb-4 flex flex-wrap gap-2">
         {ALL_FILTERS.map((tag) => {
           const active = activeTags.includes(tag);
           return (
             <button
               key={tag}
+              type="button"
               onClick={() => toggleTag(tag)}
               aria-pressed={active}
               className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -144,16 +200,18 @@ export default function SongList() {
         </div>
       )}
 
-      {error && songs.length === 0 && (
-        <p className="py-6 text-center text-sm text-lilac-light">{error}</p>
+      {error && !error.more && (
+        <ErrorBox message={error.message} onRetry={retry} stopped={failures > MAX_AUTO_RETRIES} />
       )}
 
       {initialLoading ? (
         <Spinner label="Buscando canciones..." />
       ) : songs.length === 0 ? (
-        <p className="py-10 text-center text-sm text-lilac-light">
-          No encontramos canciones{query ? ` para "${query}"` : ""}.
-        </p>
+        error ? null : (
+          <p className="py-10 text-center text-sm text-lilac-light">
+            No encontramos canciones{query ? ` para "${query}"` : ""}.
+          </p>
+        )
       ) : (
         <>
           {!query.trim() && activeTags.length === 0 && recent.length > 0 && (
@@ -192,11 +250,45 @@ export default function SongList() {
         </>
       )}
 
-      {hasMore && !initialLoading && (
+      {error?.more && (
+        <ErrorBox message={error.message} onRetry={retry} stopped={failures > MAX_AUTO_RETRIES} />
+      )}
+
+      {hasMore && !initialLoading && !error && (
         <div ref={sentinelRef} className="flex justify-center py-4">
-          <span className="h-3 w-3 animate-spin rounded-full border-2 border-plum border-t-chord-gold" />
+          <span
+            aria-hidden
+            className="h-3 w-3 animate-spin rounded-full border-2 border-plum border-t-chord-gold"
+          />
         </div>
       )}
+    </div>
+  );
+}
+
+function ErrorBox({
+  message,
+  onRetry,
+  stopped,
+}: {
+  message: string;
+  onRetry: () => void;
+  /** Ya no se reintenta solo: hay que tocar el botón. */
+  stopped: boolean;
+}) {
+  return (
+    <div role="alert" className="flex flex-col items-center gap-3 py-6 text-center">
+      <p className="text-sm text-lilac-light">
+        {message}
+        {!stopped && " Reintentando..."}
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-night"
+      >
+        Reintentar
+      </button>
     </div>
   );
 }
